@@ -310,7 +310,7 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
 
           {isBounded && (
             <p className="trace-workspace__notice">
-              Showing the most recent {Math.min(MAX_RECENT_ENTRIES, entries.length)} entries to keep the reader responsive.
+              Long trace: showing the start of the session and the most recent entries to keep the reader responsive.
             </p>
           )}
 
