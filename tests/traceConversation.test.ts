@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  contextLabel,
   filterConversationGroups,
   getToolInput,
   groupTraceEntries,
@@ -128,4 +129,22 @@ test('reports the latest usage and time span for a conversation card', async () 
   assert.deepEqual(conversationUsage(group), { input: 162332, output: 39 });
   assert.equal(conversationDuration(group), 26_944);
   assert.equal(conversationDuration(groupTraceEntries([entry('assistant', 'Alone')])[0]), undefined);
+});
+
+test('consecutive context entries share one context card and are labeled by their wrapper tag', () => {
+  const groups = groupTraceEntries([
+    entry('event', 'Task started'),
+    entry('context', '<skills_instructions>\n## Skills\n</skills_instructions>'),
+    entry('context', 'You are `/root`, the primary agent.'),
+    entry('context', '<permissions instructions>\nSandbox\n</permissions instructions>'),
+    entry('user', 'Fix the failing build'),
+  ]);
+  assert.deepEqual(groups.map((group) => [group.kind, group.blocks.map((block) => block.type)]), [
+    ['event', ['event']],
+    ['context', ['context', 'context', 'context']],
+    ['user', ['text']],
+  ]);
+  const labels = groups[1].blocks.map((block) => (block.type === 'context' ? contextLabel(block.entry.text) : ''));
+  assert.deepEqual(labels, ['skills_instructions', 'Instructions', 'permissions instructions']);
+  assert.deepEqual(filterConversationGroups(groups, '', 'context').map((group) => group.kind), ['context']);
 });

@@ -15,11 +15,11 @@ export interface ConversationTool {
 }
 
 export type ConversationBlock =
-  | { type: 'text' | 'thinking' | 'event' | 'usage' | 'error'; entry: TraceEntryDetails; updates?: number }
+  | { type: 'text' | 'thinking' | 'event' | 'usage' | 'error' | 'context'; entry: TraceEntryDetails; updates?: number }
   | { type: 'tools'; tools: ConversationTool[] }
   | { type: 'tool-result'; entry: TraceEntryDetails };
 
-export type ConversationGroupKind = 'user' | 'assistant' | 'event' | 'usage' | 'error' | 'tool';
+export type ConversationGroupKind = 'user' | 'assistant' | 'event' | 'usage' | 'error' | 'tool' | 'context';
 
 export interface ConversationGroup {
   id: string;
@@ -92,7 +92,7 @@ function addTool(group: ConversationGroup, tool: ConversationTool) {
 }
 
 function addEntry(group: ConversationGroup, entry: TraceEntryDetails, type: ConversationBlock['type']) {
-  group.blocks.push({ type: type as 'text' | 'thinking' | 'event' | 'usage' | 'error', entry });
+  group.blocks.push({ type: type as 'text' | 'thinking' | 'event' | 'usage' | 'error' | 'context', entry });
 }
 
 function toolInput(entry: TraceEntryDetails) {
@@ -101,6 +101,11 @@ function toolInput(entry: TraceEntryDetails) {
   if (!name) return text;
   const knownPrefix = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*`, 'i');
   return text.replace(knownPrefix, '');
+}
+
+/** Short label for a context entry: its wrapper tag, such as `environment_context`, or `Instructions`. */
+export function contextLabel(text: string) {
+  return text.trimStart().match(/^<([a-z][\w -]*)>/i)?.[1] ?? 'Instructions';
 }
 
 /** Returns the displayable tool input while keeping the normalized entry intact. */
@@ -198,6 +203,14 @@ export function groupTraceEntries(entries: readonly TraceEntryDetails[]): Conver
         addMetadata(current, entry);
       }
       addEntry(current!, entry, 'text');
+      return;
+    }
+
+    if (entry.kind === 'context') {
+      // Instructions and injected context collapse into one card per run of entries.
+      if (!current || current.kind !== 'context') start(entry, index, 'context');
+      else addMetadata(current, entry);
+      addEntry(current!, entry, 'context');
       return;
     }
 

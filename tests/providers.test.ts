@@ -270,3 +270,46 @@ test('Codex usage entries keep per-request counts beside the running total', () 
   assert.equal(usage.text, 'Usage: 5000000 input · 9000 output');
   assert.deepEqual(usage.usage, { input: 162332, output: 39 });
 });
+
+test('Codex instructions and injected context become context entries, not conversation turns', () => {
+  const message = (role: string, text: string, second: number) => ({
+    type: 'response_item',
+    timestamp: `2026-01-01T00:00:${String(second).padStart(2, '0')}Z`,
+    payload: { type: 'message', role, content: [{ type: role === 'assistant' ? 'output_text' : 'input_text', text }] },
+  });
+  const values = [
+    { type: 'session_meta', timestamp: '2026-01-01T00:00:00Z', payload: { id: 'context-session', cwd: '/tmp', thread_source: 'user' } },
+    { type: 'event_msg', timestamp: '2026-01-01T00:00:01Z', payload: { type: 'task_started' } },
+    message('developer', '<skills_instructions>\n## Skills\n</skills_instructions>', 2),
+    message('developer', 'You are `/root`, the primary agent.', 3),
+    message('user', '<environment_context>\n  <cwd>/tmp</cwd>\n</environment_context>', 4),
+    message('user', 'Fix the failing build', 5),
+    message('assistant', 'Done.', 6),
+    { type: 'event_msg', timestamp: '2026-01-01T00:00:07Z', payload: { type: 'task_complete', message: 'Done.' } },
+    // Context arriving after completion must not reopen the finished turn.
+    message('user', '<turn_aborted>\nThe user interrupted the previous turn.\n</turn_aborted>', 8),
+  ];
+  const observation = new CodexAdapter().inspect(values.map((value, index) => ({ value, index })), { tracePath: '/tmp/context.jsonl' });
+  assert(observation);
+  assert.deepEqual(observation.entries.map((entry) => [entry.kind, entry.text.split('\n')[0]]), [
+    ['event', 'Task started'],
+    ['context', '<skills_instructions>'],
+    ['context', 'You are `/root`, the primary agent.'],
+    ['context', '<environment_context>'],
+    ['user', 'Fix the failing build'],
+    ['assistant', 'Done.'],
+    ['event', 'Done.'],
+    ['context', '<turn_aborted>'],
+  ]);
+  assert.equal(observation.agent.status, 'finished');
+  assert.equal(observation.agent.activity, 'Done.');
+});
+
+test('Codex user text that only mentions a wrapper tag stays a user turn', () => {
+  const values = [
+    { type: 'session_meta', timestamp: '2026-01-01T00:00:00Z', payload: { id: 'mention-session', cwd: '/tmp', thread_source: 'user' } },
+    { type: 'response_item', timestamp: '2026-01-01T00:00:01Z', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Why does <environment_context> show up first?' }] } },
+  ];
+  const observation = new CodexAdapter().inspect(values.map((value, index) => ({ value, index })), { tracePath: '/tmp/mention.jsonl' });
+  assert.deepEqual(observation?.entries.map((entry) => entry.kind), ['user']);
+});

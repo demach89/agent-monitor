@@ -330,7 +330,8 @@
 .trace-card--user { --card-accent: var(--tool-result); }
 .trace-card--tool { --card-accent: var(--warning); }
 .trace-card--event,
-.trace-card--usage { --card-accent: var(--dim); }
+.trace-card--usage,
+.trace-card--context { --card-accent: var(--dim); }
 .trace-card--error { --card-accent: var(--danger); }
 
 .trace-card__header {
@@ -549,6 +550,17 @@
 .trace-thinking__body {
   color: var(--trace-body, var(--muted));
   font-size: 14px;
+}
+
+.trace-context__body {
+  max-height: 420px;
+  overflow: auto;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trace-card--context .trace-card__body {
+  gap: 6px;
 }
 
 .trace-orphan { border-color: color-mix(in srgb, var(--warning) 40%, var(--border)); }

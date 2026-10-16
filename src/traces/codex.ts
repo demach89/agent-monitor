@@ -232,6 +232,17 @@ function timelineEntry(
   };
 }
 
+/** User messages Codex injects around the conversation, recognized when one wrapper spans the whole text. */
+const CONTEXT_WRAPPERS = ['environment_context', 'user_instructions', 'turn_aborted', 'subagent_notification'];
+
+/** Instructions and injected context: developer or system messages, or a user message that is one context wrapper. */
+function isContextMessage(role: string, text: string): boolean {
+  if (role === 'developer' || role === 'system') return true;
+  if (role !== 'user') return false;
+  const trimmed = text.trim();
+  return CONTEXT_WRAPPERS.some((tag) => trimmed.startsWith(`<${tag}>`) && trimmed.endsWith(`</${tag}>`));
+}
+
 function responseText(payload: JsonObject, role: string): string {
   const text = contentText(payload.content);
   if (text) return text;
@@ -453,6 +464,11 @@ export class CodexAdapter {
         if (typeName === 'message') {
           const role = firstString(payload, ['role']) ?? 'assistant';
           const text = responseText(payload, role);
+          // Context is shown but does not reopen a finished turn or replace the activity.
+          if (text && isContextMessage(role, text)) {
+            addEntry(entries, entryFor(record, 'context', text, lineTimestamp));
+            continue;
+          }
           if (text) {
             completed = false;
             failed = false;
