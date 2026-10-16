@@ -59,3 +59,14 @@ test('matches follow display order and carry the region occurrence', () => {
   assert.equal(findMatches(groups, 'NEEDLE', { caseSensitive: true }).length, 0);
   assert.equal(findMatches(groups, '   ').length, 0);
 });
+
+test('context entries are searchable and revealed like other collapsed blocks', () => {
+  const groups = groupTraceEntries([
+    entry('context', '<environment_context>\n  <cwd>/tmp/needle</cwd>\n</environment_context>'),
+    entry('user', 'Fix it'),
+  ]);
+  const key = blockKey(groups[0].id, 'context', 0);
+  assert.deepEqual(findMatches(groups, 'needle').map(({ region, reveal }) => ({ region, reveal })), [
+    { region: key, reveal: { open: [key], expand: [] } },
+  ]);
+});

@@ -62,7 +62,7 @@ export function findRegions(groups: readonly ConversationGroup[]): FindRegion[] 
         });
         return;
       }
-      if (block.type === 'thinking') return add(key, block.entry.text, { open: [key], expand: [] });
+      if (block.type === 'thinking' || block.type === 'context') return add(key, block.entry.text, { open: [key], expand: [] });
       if (block.type === 'tool-result') return add(key, prettyTraceText(block.entry.text), { open: [key], expand: [] });
       // Usage is summarized in the card header unless the card is only usage.
       if (block.type === 'usage' && group.kind !== 'usage') return;

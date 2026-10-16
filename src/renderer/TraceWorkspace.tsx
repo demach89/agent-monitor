@@ -617,7 +617,7 @@ function ConversationCard({ group, openDisclosure, onToggle }: { group: Conversa
                 openDisclosure={openDisclosure}
                 onToggle={onToggle}
               >
-                <Markdown className="trace-context__body" text={block.entry.text} />
+                <div data-find-region={key} className="trace-find__region"><Markdown className="trace-context__body" text={block.entry.text} /></div>
               </Disclosure>
             );
           }
