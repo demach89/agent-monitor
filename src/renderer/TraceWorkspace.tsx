@@ -25,7 +25,7 @@ import {
   toolKey as toolRowKey,
   type FindReveal,
 } from './traceFind';
-import { emptyTraceLoad, firstRequest, mergePage, nextRequest, remainingRequests, type TraceLoadState } from './traceLoad';
+import { emptyTraceLoad, nextRequest, TracePager, type TraceLoadState } from './traceLoad';
 import './TraceWorkspace.css';
 
 const TRACE_KIND_LABEL: Record<TraceEntry['kind'], string> = {
@@ -204,11 +204,8 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
   // Where to scroll after a jump has loaded its pages: the top or the bottom of the list.
   const [pendingScroll, setPendingScroll] = useState<'top' | 'bottom'>();
   const sentinelRef = useRef<HTMLDivElement>(null);
-  const loadRef = useRef(load);
-  loadRef.current = load;
-  const inFlightRef = useRef(false);
-  // Bumped on every reload so pages requested for an earlier load are dropped.
-  const generationRef = useRef(0);
+  // The pager of the current load; a reload replaces it, so callbacks of an earlier one are ignored.
+  const pagerRef = useRef<TracePager>(undefined);
 
   function fetchPage(request: TraceRangeRequest): Promise<TracePage> {
     if (demo) return Promise.resolve(sliceTraceRange(demoTrace(agent), request));
@@ -218,63 +215,57 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
   }
 
   useEffect(() => {
-    const generation = ++generationRef.current;
-    inFlightRef.current = false;
     setLoading(true);
     setError(undefined);
     setPageError(undefined);
-    setLoad(emptyTraceLoad);
     setOpenDisclosure(new Set());
     revealedRef.current = { open: [], expand: [] };
     revealedMatchRef.current = undefined;
     if (!demo && typeof window !== 'undefined' && !window.agentMonitor) {
+      pagerRef.current = undefined;
+      setLoad(emptyTraceLoad);
       setLoading(false);
       setError('The native monitor is unavailable in this browser session.');
       return;
     }
-    void fetchPage(firstRequest(order))
-      .then((page) => {
-        if (generation !== generationRef.current) return;
-        setLoad(mergePage(emptyTraceLoad, page));
-        setLoading(false);
+    const pager = new TracePager(fetchPage, (state) => {
+      if (pagerRef.current === pager) setLoad(state);
+    });
+    pagerRef.current = pager;
+    pager.start(order)
+      .then(() => {
+        if (pagerRef.current === pager) setLoading(false);
       })
       .catch(() => {
-        if (generation !== generationRef.current) return;
+        if (pagerRef.current !== pager) return;
         setLoading(false);
         setError('Trace could not be loaded from the native monitor.');
       });
   }, [agent.id, demo, refreshNonce, order]);
 
-  /** Loads the given pages one after another; resolves false when a newer load replaced this one. */
-  async function loadPages(requests: TraceRangeRequest[]): Promise<boolean> {
-    if (inFlightRef.current || !requests.length) return true;
-    const generation = generationRef.current;
-    inFlightRef.current = true;
+  /** Runs a pager load, reporting a failed page below the list. Resolves false when it failed or was replaced. */
+  async function runLoad(run: (pager: TracePager) => Promise<void>): Promise<boolean> {
+    const pager = pagerRef.current;
+    if (!pager) return false;
     setPageError(undefined);
     try {
-      for (const request of requests) {
-        const page = await fetchPage(request);
-        if (generation !== generationRef.current) return false;
-        setLoad((previous) => mergePage(previous, page));
-      }
-      return true;
+      await run(pager);
     } catch {
-      if (generation === generationRef.current) setPageError('More of the trace could not be loaded.');
+      if (pagerRef.current === pager) setPageError('More of the trace could not be loaded.');
       return false;
-    } finally {
-      if (generation === generationRef.current) inFlightRef.current = false;
     }
+    return pagerRef.current === pager;
   }
 
   function loadMore() {
-    const request = nextRequest(loadRef.current, order);
-    if (request) void loadPages([request]);
+    void runLoad((pager) => pager.loadMore(order));
   }
 
   async function jumpTo(edge: 'start' | 'end') {
-    const loaded = await loadPages(remainingRequests(loadRef.current, edge));
+    // A jump waits for a page that is still loading, then loads everything up to the edge.
+    if (!await runLoad((pager) => pager.jumpTo(edge))) return;
     // The start is at the top when reading oldest first, at the bottom when reading newest first.
-    if (loaded) setPendingScroll((edge === 'start') === (order === 'oldest') ? 'top' : 'bottom');
+    setPendingScroll((edge === 'start') === (order === 'oldest') ? 'top' : 'bottom');
   }
 
   // Keep loading while the end of the list is within about a screen of the viewport.
@@ -302,6 +293,8 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
   ], []);
 
   const groups = useMemo(() => groupTraceEntries(load.entries as TraceEntryDetails[]), [load.entries]);
+  // Results come after their calls, so once the end is loaded a call without a result has none yet.
+  const resultsLoaded = load.end === load.total;
   const fullyLoaded = load.start === 0 && load.end === load.total;
   const more = nextRequest(load, order);
   const remaining = order === 'oldest' ? load.total - load.end : load.start;
@@ -468,7 +461,7 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
             {search.trim() && !fullyLoaded && (
               <div className="trace-find__partial">
                 <span className="trace-find__loaded">in loaded {(load.end - load.start).toLocaleString()} of {load.total.toLocaleString()}</span>
-                <button type="button" className="trace-workspace__button" onClick={() => void loadPages(remainingRequests(loadRef.current, 'both'))}>Search whole session</button>
+                <button type="button" className="trace-workspace__button" onClick={() => void runLoad((pager) => pager.jumpTo('both'))}>Search whole session</button>
               </div>
             )}
             <div className="trace-find__mode" role="group" aria-label="Search mode">
@@ -519,7 +512,7 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
                 <ConversationCard
                   key={group.id}
                   group={group}
-                  fullyLoaded={fullyLoaded}
+                  resultsLoaded={resultsLoaded}
                   openDisclosure={openDisclosure}
                   onToggle={toggleDisclosure}
                 />
@@ -630,7 +623,7 @@ function TraceHeader({ agent, titleId, itemCount, subagents, parent, loading, on
   );
 }
 
-function ConversationCard({ group, fullyLoaded, openDisclosure, onToggle }: { group: ConversationGroup; fullyLoaded: boolean } & DisclosureProps) {
+function ConversationCard({ group, resultsLoaded, openDisclosure, onToggle }: { group: ConversationGroup; resultsLoaded: boolean } & DisclosureProps) {
   const usage = conversationUsage(group);
   const duration = conversationDuration(group);
   const iso = isoFor(group.timestamp);
@@ -655,7 +648,7 @@ function ConversationCard({ group, fullyLoaded, openDisclosure, onToggle }: { gr
         {group.blocks.map((block, index) => {
           const key = blockKey(group.id, block.type, index);
           if (block.type === 'tools') {
-            return <ToolGroup key={key} groupKey={key} tools={block.tools} fullyLoaded={fullyLoaded} openDisclosure={openDisclosure} onToggle={onToggle} />;
+            return <ToolGroup key={key} groupKey={key} tools={block.tools} resultsLoaded={resultsLoaded} openDisclosure={openDisclosure} onToggle={onToggle} />;
           }
           if (block.type === 'thinking') {
             return (
@@ -736,10 +729,10 @@ function Disclosure({ id, className, title, summary, openDisclosure, onToggle, c
   );
 }
 
-function ToolGroup({ groupKey, tools, fullyLoaded, openDisclosure, onToggle }: {
+function ToolGroup({ groupKey, tools, resultsLoaded, openDisclosure, onToggle }: {
   groupKey: string;
   tools: ConversationTool[];
-  fullyLoaded: boolean;
+  resultsLoaded: boolean;
 } & DisclosureProps) {
   // Tool groups start expanded; each call's input and result start collapsed.
   const open = !openDisclosure.has(groupKey);
@@ -754,7 +747,7 @@ function ToolGroup({ groupKey, tools, fullyLoaded, openDisclosure, onToggle }: {
       {open && (
         <ul className="trace-tools__tree">
           {tools.map((tool, index) => (
-            <ToolRow key={`${groupKey}:${tool.call.id}:${index}`} tool={tool} toolKey={toolRowKey(groupKey, index)} fullyLoaded={fullyLoaded} openDisclosure={openDisclosure} onToggle={onToggle} />
+            <ToolRow key={`${groupKey}:${tool.call.id}:${index}`} tool={tool} toolKey={toolRowKey(groupKey, index)} resultsLoaded={resultsLoaded} openDisclosure={openDisclosure} onToggle={onToggle} />
           ))}
         </ul>
       )}
@@ -762,10 +755,10 @@ function ToolGroup({ groupKey, tools, fullyLoaded, openDisclosure, onToggle }: {
   );
 }
 
-function ToolRow({ tool, toolKey, fullyLoaded, openDisclosure, onToggle }: {
+function ToolRow({ tool, toolKey, resultsLoaded, openDisclosure, onToggle }: {
   tool: ConversationTool;
   toolKey: string;
-  fullyLoaded: boolean;
+  resultsLoaded: boolean;
 } & DisclosureProps) {
   const open = openDisclosure.has(toolKey);
   const input = getToolInput(tool.call);
@@ -783,7 +776,7 @@ function ToolRow({ tool, toolKey, fullyLoaded, openDisclosure, onToggle }: {
       </button>
       <div className="trace-tool__preview">
         <span aria-hidden="true" />
-        {tool.result ? preview(resultText, 240) : fullyLoaded ? 'No result in the retained trace.' : 'Result not loaded yet'}
+        {tool.result ? preview(resultText, 240) : resultsLoaded ? 'No result in the retained trace.' : 'Result not loaded yet'}
       </div>
       {open && (
         <div className="trace-tool__details">

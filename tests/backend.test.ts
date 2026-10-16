@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, rm, writeFile, appendFile, truncate } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, writeFile, appendFile, truncate } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -291,5 +291,22 @@ test('paged trace ranges stay stable while the file grows', async () => {
     const next = await monitor.getTraceRange('long', { start: 200, limit: 200 });
     assert.equal(next.entries[0].text, 'message 200');
     assert.equal(next.total, 1511);
+  });
+});
+
+test('a growing trace file is read incrementally for paged ranges', async () => {
+  await withLongSession(300, async (monitor, file) => {
+    await monitor.getTraceRange('long', { start: 0, limit: 200 });
+    // Same-length edit of already read bytes, then an append: an incremental read parses only the appended bytes.
+    const original = await readFile(file, 'utf8');
+    await writeFile(file, original.replace('Start here', 'Start HERE'));
+    await appendFile(file, line({ type: 'event_msg', payload: { type: 'agent_message', message: 'appended' } }));
+    const [first, last] = await Promise.all([
+      monitor.getTraceRange('long', { start: 0, limit: 1 }),
+      monitor.getTraceRange('long', { end: 302, limit: 1 }),
+    ]);
+    assert.equal(first.entries[0].text, 'Start here');
+    assert.equal(last.entries[0].text, 'appended');
+    assert.equal(first.total, 302);
   });
 });
