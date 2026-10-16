@@ -86,6 +86,20 @@ async function main() {
     await waitFor('the selected run kept', async () => await rows().count() === 2
       && await page.locator(`button.run-item [title="${runs[2].cwd}"]`).count() === 1);
 
+    // A narrow window shows the period and project behind a Filters button.
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window.unmaximize();
+      window.setSize(1100, 800);
+    });
+    const filtersButton = page.getByRole('button', { name: /^Filters/ });
+    await waitFor('the compact Filters button', async () => await filtersButton.isVisible()
+      && !await page.getByRole('button', { name: /^Period:/ }).isVisible());
+    if (!(await filtersButton.innerText()).includes('2')) throw new Error('the Filters button does not count the two changed filters');
+    await filtersButton.click();
+    await choose('Period', 'Last month');
+    await waitFor('the compact panel to apply filters', async () => (await filtersButton.innerText()).replace(/\s/g, '') === 'Filters1');
+
     if (pageErrors.length) throw new Error(`renderer errors: ${pageErrors.map(String).join('; ')}`);
     console.log('PASS: run filters default to the last month, narrow to a project, persist, and keep the open run');
   } finally {
