@@ -86,6 +86,20 @@ async function main() {
     await waitFor('the selected run kept', async () => await rows().count() === 2
       && await page.locator(`button.run-item [title="${runs[2].cwd}"]`).count() === 1);
 
+    // A narrow window shows the period and project behind a Filters button.
+    await electronApp.evaluate(({ BrowserWindow }) => {
+      const window = BrowserWindow.getAllWindows()[0];
+      window.unmaximize();
+      window.setSize(1100, 800);
+    });
+    const filtersButton = page.getByRole('button', { name: /^Filters/ });
+    await waitFor('the compact Filters button', async () => await filtersButton.isVisible()
+      && !await page.getByRole('button', { name: /^Period:/ }).isVisible());
+    if (!(await filtersButton.innerText()).includes('2')) throw new Error('the Filters button does not count the two changed filters');
+    await filtersButton.click();
+    await choose('Period', 'Last month');
+    await waitFor('the compact panel to apply filters', async () => (await filtersButton.innerText()).replace(/\s/g, '') === 'Filters1');
+
     // A search matching only runs outside the filters says so and can show them.
     await page.getByRole('searchbox', { name: 'Search runs' }).fill('pays');
     await waitFor('the outside-the-filters hint', () => page.getByText('1 more outside the filters').isVisible());
