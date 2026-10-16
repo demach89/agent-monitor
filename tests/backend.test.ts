@@ -236,3 +236,16 @@ test('parent references cannot connect sessions across providers', () => {
   graph = reduceAgentEvent(graph, { type: 'agent.discovered', agent: make('claude-root', 'claude', 'same') });
   assert.deepEqual(graph.edges.map(e => [e.source, e.target]), [['claude-root', 'claude-child']]);
 });
+
+test('Codex adapter keeps every entry when maxEntries is unbounded', () => {
+  const records = [
+    meta({ id: 'many' }),
+    ...Array.from({ length: 1200 }, (_, index) => ({ type: 'event_msg', payload: { type: 'agent_message', message: `message ${index + 1}` } })),
+  ];
+  const unbounded = new CodexAdapter().inspect(records, { maxEntries: Infinity });
+  assert.equal(unbounded?.entries.length, 1200);
+  assert.equal(unbounded?.entries[0].text, 'message 1');
+  const bounded = new CodexAdapter().inspect(records);
+  assert.equal(bounded?.entries.length, 1000);
+  assert.equal(bounded?.entries[0].text, 'message 201');
+});
