@@ -249,3 +249,47 @@ test('Codex adapter keeps every entry when maxEntries is unbounded', () => {
   assert.equal(bounded?.entries.length, 1000);
   assert.equal(bounded?.entries[0].text, 'message 201');
 });
+
+async function withLongSession(messages: number, run: (monitor: TraceMonitor, file: string) => Promise<void>) {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'agent-monitor-range-'));
+  const file = path.join(root, 'long.jsonl');
+  const body = Array.from({ length: messages }, (_, index) => line({ type: 'event_msg', payload: { type: 'agent_message', message: `message ${index + 1}` } })).join('');
+  await writeFile(file, line(meta({ id: 'long' }))
+    + line({ type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Start here' }] } })
+    + body);
+  const monitor = new TraceMonitor({ roots: [root] });
+  try {
+    await monitor.start();
+    await monitor.loadRun('long');
+    await run(monitor, file);
+  } finally {
+    await monitor.stop();
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test('paged trace ranges cover a long session from either end', async () => {
+  await withLongSession(1500, async (monitor) => {
+    const first = await monitor.getTraceRange('long', { start: 0, limit: 200 });
+    assert.equal(first.total, 1501);
+    assert.equal(first.start, 0);
+    assert.equal(first.entries[0].text, 'Start here');
+    assert.equal(first.entries.length, 200);
+    const second = await monitor.getTraceRange('long', { start: 200, limit: 200 });
+    assert.equal(second.entries[0].text, 'message 200');
+    const last = await monitor.getTraceRange('long', { end: 1501, limit: 200 });
+    assert.equal(last.start, 1301);
+    assert.equal(last.entries.at(-1)?.text, 'message 1500');
+    assert.deepEqual(await monitor.getTraceRange('missing', { start: 0, limit: 200 }), { entries: [], start: 0, total: 0 });
+  });
+});
+
+test('paged trace ranges stay stable while the file grows', async () => {
+  await withLongSession(1500, async (monitor, file) => {
+    await monitor.getTraceRange('long', { start: 0, limit: 200 });
+    await appendFile(file, Array.from({ length: 10 }, (_, index) => line({ type: 'event_msg', payload: { type: 'agent_message', message: `late ${index + 1}` } })).join(''));
+    const next = await monitor.getTraceRange('long', { start: 200, limit: 200 });
+    assert.equal(next.entries[0].text, 'message 200');
+    assert.equal(next.total, 1511);
+  });
+});
