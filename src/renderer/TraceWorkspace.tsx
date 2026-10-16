@@ -264,7 +264,9 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
   const isBounded = entries.length >= MAX_RECENT_ENTRIES;
   const hasFilter = Boolean((findMode === 'filter' && search.trim()) || kind !== 'all');
 
-  useEffect(() => setMatchIndex(0), [caseSensitive, findMode, query]);
+  // Reset on what the reader typed, not on the deferred query: the deferred value can
+  // settle after an Enter and would otherwise jump back to the first match.
+  useEffect(() => setMatchIndex(0), [caseSensitive, findMode, search]);
 
   // Open the disclosures that hide the current match, once per match.
   useEffect(() => {
