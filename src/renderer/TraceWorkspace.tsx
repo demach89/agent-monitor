@@ -465,6 +465,12 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
               <button type="button" className="trace-find__button" onClick={() => moveMatch(1)} disabled={!matches.length} aria-label="Next match" title="Next match (Enter)"><ChevronDown size={14} /></button>
               <button type="button" className="trace-find__button trace-find__case" onClick={() => setCaseSensitive((value) => !value)} aria-pressed={caseSensitive} aria-label="Match case" title="Match case">Aa</button>
             </div>
+            {search.trim() && !fullyLoaded && (
+              <div className="trace-find__partial">
+                <span className="trace-find__loaded">in loaded {(load.end - load.start).toLocaleString()} of {load.total.toLocaleString()}</span>
+                <button type="button" className="trace-workspace__button" onClick={() => void loadPages(remainingRequests(loadRef.current, 'both'))}>Search whole session</button>
+              </div>
+            )}
             <div className="trace-find__mode" role="group" aria-label="Search mode">
               <button type="button" aria-pressed={findMode === 'find'} onClick={() => setFindMode('find')} title="Highlight matches and keep every card">Find</button>
               <button type="button" aria-pressed={findMode === 'filter'} onClick={() => setFindMode('filter')} title="Show only cards with matches">Filter</button>

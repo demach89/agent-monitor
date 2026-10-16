@@ -42,11 +42,15 @@ async function main() {
     await writeFile(path.join(traceRoot, `${rootId}.jsonl`), `${[
       { timestamp: at(0), type: 'session_meta', payload: { id: rootId, cwd: path.join(tempRoot, 'find-run'), model_provider: 'openai', model: 'gpt-5.5', thread_source: 'user' } },
       { timestamp: at(0), type: 'turn_context', payload: { model: 'gpt-5.5', effort: 'low' } },
+      // A card without matches, so Find and Filter show different card counts.
+      { timestamp: at(0), type: 'response_item', payload: { type: 'message', role: 'user', content: [{ type: 'input_text', text: 'Please look into the build.' }] } },
       { timestamp: at(1), type: 'response_item', payload: { type: 'custom_tool_call', call_id: 'call-1', name: 'exec', input: 'grep -r marker .' } },
       { timestamp: at(2), type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'call-1', output: 'line one\nfound needle-in-result here\nline three' } },
       ...Array.from({ length: 60 }, (_, index) => message(index + 3, `Filler message ${index + 1}\n\nPlain text without the search word.`)),
       message(70, 'The final answer mentions needle-in-text once.'),
-      { timestamp: at(71), type: 'event_msg', payload: { type: 'task_complete', message: 'done' } },
+      // Far beyond the first page of 200 entries, so it is only found after loading the whole session.
+      ...Array.from({ length: 1000 }, (_, index) => message(71 + index, index === 999 ? 'The very last reply holds the distant-marker word.' : `Later message ${index + 1}`)),
+      { timestamp: at(1071), type: 'event_msg', payload: { type: 'task_complete', message: 'done' } },
     ].map(record => JSON.stringify(record)).join('\n')}\n`);
 
     electronApp = await electron.launch({
@@ -112,6 +116,18 @@ async function main() {
     await waitFor('search to clear', async () => await input.inputValue() === '');
     await waitFor('the revealed result to collapse again', async () => !await resultVisible());
     check((await highlights()).all === 0, 'highlights remain after clearing the search');
+
+    // A match outside the loaded pages is found after loading the whole session, and the view reaches it.
+    await input.fill('distant-marker');
+    await waitFor('the partial-load note', async () => (await workspace.locator('.trace-find__loaded').innerText()).includes('loaded'));
+    check((await count.innerText()).trim() === 'No matches', 'the distant match was found before loading it');
+    await workspace.getByRole('button', { name: 'Search whole session' }).click();
+    await waitFor('the distant match', async () => (await count.innerText()).trim() === '1 / 1');
+    await waitFor('the distant match in view', async () => {
+      const target = await workspace.getByText('The very last reply holds the distant-marker word.').boundingBox();
+      const area = await content.boundingBox();
+      return target && area && target.y >= area.y && target.y + target.height <= area.y + area.height;
+    });
 
     if (pageErrors.length) throw new Error(`renderer errors: ${pageErrors.map(String).join('; ')}`);
     console.log('PASS: find in trace highlights, navigates, reveals collapsed output, and filters');
