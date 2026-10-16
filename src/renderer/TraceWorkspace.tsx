@@ -7,6 +7,7 @@ import {
   conversationDuration,
   conversationUsage,
   filterConversationGroups,
+  contextLabel,
   getToolInput,
   groupTraceEntries,
   prettyTraceText,
@@ -36,6 +37,7 @@ const TRACE_KIND_LABEL: Record<TraceEntry['kind'], string> = {
   usage: 'Usage',
   error: 'Error',
   event: 'Event',
+  context: 'Context',
 };
 
 const STATUS_LABEL: Record<Agent['status'], string> = {
@@ -155,6 +157,7 @@ function groupLabel(kind: ConversationGroup['kind']) {
   if (kind === 'tool') return 'Tool result';
   if (kind === 'usage') return 'Usage';
   if (kind === 'error') return 'Error';
+  if (kind === 'context') return 'Context';
   return 'Event';
 }
 
@@ -600,6 +603,21 @@ function ConversationCard({ group, openDisclosure, onToggle }: { group: Conversa
                 onToggle={onToggle}
               >
                 <div data-find-region={key} className="trace-find__region"><Markdown className="trace-thinking__body" text={block.entry.text} /></div>
+              </Disclosure>
+            );
+          }
+          if (block.type === 'context') {
+            return (
+              <Disclosure
+                key={key}
+                id={key}
+                className="trace-context"
+                title={contextLabel(block.entry.text)}
+                summary={preview(block.entry.text.replace(/^\s*<[^>]+>\s*/, ''), 200)}
+                openDisclosure={openDisclosure}
+                onToggle={onToggle}
+              >
+                <Markdown className="trace-context__body" text={block.entry.text} />
               </Disclosure>
             );
           }

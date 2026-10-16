@@ -222,6 +222,7 @@ const TRACE_KIND_LABEL: Record<TraceEntry['kind'], string> = {
   usage: 'Usage',
   error: 'Error',
   event: 'Event',
+  context: 'Context',
 };
 
 function now() {
