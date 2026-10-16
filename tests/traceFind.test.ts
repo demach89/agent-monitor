@@ -37,9 +37,9 @@ test('regions cover visible text, thinking, tool input and result, and unmatched
     { key: blockKey(user.id, 'text', 0), text: 'Find the needle', reveal: { open: [], expand: [] } },
     { key: thinkingKey, text: 'Thinking about the needle', reveal: { open: [thinkingKey], expand: [] } },
     { key: blockKey(assistant.id, 'text', 1), text: 'Looking', reveal: { open: [], expand: [] } },
-    { key: `${rowKey}:input`, text: '{"command":"grep needle"}', reveal: { open: [rowKey], expand: [toolsKey] } },
-    // Results are searched as displayed: JSON is pretty-printed, as in the result block.
-    { key: `${rowKey}:result`, text: '{\n  "stdout": "needle\\nhaystack"\n}', reveal: { open: [rowKey], expand: [toolsKey] } },
+    // Payloads are searched as displayed: decorated, with real line breaks instead of JSON escapes.
+    { key: `${rowKey}:input`, text: 'grep needle', reveal: { open: [rowKey], expand: [toolsKey] } },
+    { key: `${rowKey}:result`, text: 'stdout:\nneedle\nhaystack', reveal: { open: [rowKey], expand: [toolsKey] } },
     // Usage inside an assistant card is only summarized in the header, so it is not a region.
     { key: orphanKey, text: 'orphan needle', reveal: { open: [orphanKey], expand: [] } },
   ]);

@@ -1,4 +1,10 @@
-import { getToolInput, prettyTraceText, type ConversationGroup } from './traceConversation';
+import { formatPayload, payloadText } from './formatPayload';
+import { getToolInput, type ConversationGroup } from './traceConversation';
+
+/** A tool payload as the trace shows it by default: decorated, with real line breaks. */
+function shownPayload(text: string) {
+  return payloadText(formatPayload(text));
+}
 
 /** Disclosure keys to toggle so a region becomes visible: `open` for collapsed-by-default blocks, `expand` for tool groups. */
 export interface FindReveal {
@@ -57,13 +63,13 @@ export function findRegions(groups: readonly ConversationGroup[]): FindRegion[] 
         block.tools.forEach((tool, toolIndex) => {
           const row = toolKey(key, toolIndex);
           const reveal = { open: [row], expand: [key] };
-          add(`${row}:input`, getToolInput(tool.call) || '—', reveal);
-          if (tool.result) add(`${row}:result`, prettyTraceText(tool.result.text) || 'Empty result', reveal);
+          add(`${row}:input`, shownPayload(getToolInput(tool.call) || '—'), reveal);
+          if (tool.result) add(`${row}:result`, shownPayload(tool.result.text || 'Empty result'), reveal);
         });
         return;
       }
       if (block.type === 'thinking' || block.type === 'context') return add(key, block.entry.text, { open: [key], expand: [] });
-      if (block.type === 'tool-result') return add(key, prettyTraceText(block.entry.text), { open: [key], expand: [] });
+      if (block.type === 'tool-result') return add(key, shownPayload(block.entry.text), { open: [key], expand: [] });
       // Usage is summarized in the card header unless the card is only usage.
       if (block.type === 'usage' && group.kind !== 'usage') return;
       add(key, block.entry.text, VISIBLE);
