@@ -48,9 +48,12 @@ async function main() {
       message(),
       { type: 'response_item', payload: { type: 'custom_tool_call_output', call_id: 'split-call', output: 'split result arrived' } },
       ...Array.from({ length: 1300 }, message),
+      // A call still running at the end of the session: it has no result anywhere yet.
+      { type: 'response_item', payload: { type: 'custom_tool_call', call_id: 'running-call', name: 'exec', input: 'sleep 60' } },
     ];
     const total = records.length - 1;
     const last = `message ${count}`;
+    const running = workspace => workspace.locator('.trace-tool', { hasText: 'sleep 60' }).locator('.trace-tool__preview');
     await writeFile(path.join(traceRoot, `${rootId}.jsonl`), `${records.map(record => JSON.stringify(record)).join('\n')}\n`);
 
     electronApp = await electron.launch({
@@ -99,6 +102,8 @@ async function main() {
     await page.getByRole('option', { name: 'Newest first' }).click();
     await waitFor('newest first', async () => (await cards.first().innerText()).includes(last));
     check(!await has('message 1000'), 'newest first did not start again from the end');
+    // Results follow their calls, so with the end loaded a call without a result has none yet.
+    check((await running(workspace).innerText()).includes('No result in the retained trace.'), 'a running call at the loaded end is marked as not loaded');
     await waitFor('older pages while scrolling', async () => {
       await content.evaluate(element => { element.scrollTop = element.scrollHeight; });
       return has('message 1000');
