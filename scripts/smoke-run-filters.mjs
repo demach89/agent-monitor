@@ -86,6 +86,13 @@ async function main() {
     await waitFor('the selected run kept', async () => await rows().count() === 2
       && await page.locator(`button.run-item [title="${runs[2].cwd}"]`).count() === 1);
 
+    // A search matching only runs outside the filters says so and can show them.
+    await page.getByRole('searchbox', { name: 'Search runs' }).fill('pays');
+    await waitFor('the outside-the-filters hint', () => page.getByText('1 more outside the filters').isVisible());
+    await page.getByRole('button', { name: 'Show all' }).click();
+    await waitFor('the run found after Show all', async () => await rows().count() === 1
+      && await page.locator(`button.run-item [title="${runs[1].cwd}"]`).count() === 1);
+
     if (pageErrors.length) throw new Error(`renderer errors: ${pageErrors.map(String).join('; ')}`);
     console.log('PASS: run filters default to the last month, narrow to a project, persist, and keep the open run');
   } finally {
