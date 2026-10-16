@@ -13,7 +13,6 @@ import {
 } from '../../traces/registry';
 import type { CodexObservation, TraceRecord } from '../../traces/codex';
 import { UsageAccumulator } from '../../traces/usage-accounting';
-import { MAX_TRACE_WINDOW, windowTraceEntries } from './traceWindow';
 
 export interface TraceMonitorOptions {
   roots?: string[];
@@ -36,8 +35,6 @@ interface FileState {
   probe: Array<{ value: unknown; index: number }>;
   probeBytes: number;
   nextCanonicalIndex: number;
-  /** Records dropped between the retained head and the tail. */
-  evictedRecords: number;
   observation?: CodexObservation;
   initialized: boolean;
   mtimeMs?: number;
@@ -86,8 +83,7 @@ const READ_CHUNK_BYTES = 64 * 1024;
 const HEADER_READ_CHUNK_BYTES = 8 * 1024;
 const INITIAL_READ_CONCURRENCY = 8;
 const MAX_PARSED_RECORDS = 512;
-/** Leading records kept through eviction so the session start, including the first prompt, stays readable. */
-const MAX_HEAD_RECORDS = 48;
+const MAX_MONITOR_TRACE_ENTRIES = 200;
 const MAX_PENDING_TEXT = 2 * 1024 * 1024;
 const MAX_RAW_PROBE_RECORDS = 128;
 const MAX_RAW_PROBE_BYTES = 2 * 1024 * 1024;
@@ -713,7 +709,6 @@ export class TraceMonitor extends EventEmitter {
         records: [],
         aggregate: createAggregate(),
         headerEmitted: false,
-        evictedRecords: 0,
         probe: [],
         probeBytes: 0,
         nextCanonicalIndex: 0,
@@ -752,11 +747,7 @@ export class TraceMonitor extends EventEmitter {
     const wasInitialized = state.initialized;
     const agent = this.applyFreshness(observation.agent, stat.mtimeMs, wasInitialized && bytesRead > 0, observation);
     const previousId = state.observation?.agent.id;
-    const entries = windowTraceEntries(observation.entries, {
-      agentId: agent.id,
-      headCount: this.headEntryCount(state, normalized, observation.entries.length),
-      middleEvicted: state.evictedRecords > 0,
-    }).map((entry) => ({ ...entry }));
+    const entries = observation.entries.slice(-MAX_MONITOR_TRACE_ENTRIES).map((entry) => ({ ...entry }));
     state.observation = { ...observation, entries, agent };
     state.initialized = true;
     if (previousId && previousId !== agent.id) this.removeObservation(previousId);
@@ -1064,22 +1055,11 @@ export class TraceMonitor extends EventEmitter {
     if (state.records.length <= MAX_PARSED_RECORDS) return;
     const header = state.records.find((record) => objectValue(record.value)?.type === 'session_meta');
     const latestTurnContext = [...state.records].reverse().find((record) => objectValue(record.value)?.type === 'turn_context');
-    // Records stay sorted by index, so the first ones are always the session start.
-    const head = state.records.slice(0, MAX_HEAD_RECORDS);
-    const preserved = [header, ...head, latestTurnContext].filter((record): record is TraceRecord => !!record);
+    const preserved = [header, latestTurnContext].filter((record): record is TraceRecord => !!record);
     const tailBudget = Math.max(1, MAX_PARSED_RECORDS - preserved.length);
     const tail = state.records.slice(-tailBudget);
-    const before = state.records.length;
     state.records = [...new Map([...preserved, ...tail].map((record) => [record.index, record])).values()]
       .sort((left, right) => (left.index ?? 0) - (right.index ?? 0));
-    state.evictedRecords += before - state.records.length;
-  }
-
-  /** Number of trace entries that come from the retained session start. */
-  private headEntryCount(state: FileState, tracePath: string, entryCount: number): number {
-    if (entryCount <= MAX_TRACE_WINDOW && state.evictedRecords === 0) return entryCount;
-    // The adapter is a forward pass, so entries of the head records alone are a prefix of the full entries.
-    return inspectCanonical(state.records.slice(0, MAX_HEAD_RECORDS), { tracePath })?.entries.length ?? 0;
   }
 
   private applyFreshness(agent: Agent, mtimeMs: number, changed: boolean, observation: CodexObservation): Agent {
