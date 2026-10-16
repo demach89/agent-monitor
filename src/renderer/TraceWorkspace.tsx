@@ -1,6 +1,7 @@
-import { useEffect, useId, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ArrowUpRight, Check, ChevronDown, ChevronRight, Copy, Home } from 'lucide-react';
-import type { Agent, AgentHarness, TraceEntry } from '../shared/types';
+import type { Agent, AgentHarness, TraceEntry, TracePage, TraceRangeRequest } from '../shared/types';
+import { sliceTraceRange } from '../shared/traceRange';
 import { Dropdown } from './Dropdown';
 import { Markdown } from './Markdown';
 import {
@@ -13,9 +14,8 @@ import {
   type ConversationTool,
   type TraceEntryDetails,
 } from './traceConversation';
+import { emptyTraceLoad, firstRequest, mergePage, nextRequest, remainingRequests, type TraceLoadState } from './traceLoad';
 import './TraceWorkspace.css';
-
-const MAX_RECENT_ENTRIES = 200;
 
 const TRACE_KIND_LABEL: Record<TraceEntry['kind'], string> = {
   user: 'User',
@@ -182,7 +182,7 @@ export interface TraceWorkspaceProps {
 
 export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, demo = false }: TraceWorkspaceProps) {
   const searchId = useId();
-  const [entries, setEntries] = useState<TraceEntryDetails[]>([]);
+  const [load, setLoad] = useState<TraceLoadState>(emptyTraceLoad);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>();
   const [search, setSearch] = useState('');
@@ -191,61 +191,114 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
   const [order, setOrder] = useState<TraceOrder>(readOrder);
   // Keys the reader toggled away from each disclosure's default state.
   const [openDisclosure, setOpenDisclosure] = useState<Set<string>>(() => new Set());
+  const [pageError, setPageError] = useState<string>();
+  // Where to scroll after a jump has loaded its pages: the top or the bottom of the list.
+  const [pendingScroll, setPendingScroll] = useState<'top' | 'bottom'>();
+  const contentRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const inFlightRef = useRef(false);
+  // Bumped on every reload so pages requested for an earlier load are dropped.
+  const generationRef = useRef(0);
+
+  function fetchPage(request: TraceRangeRequest): Promise<TracePage> {
+    if (demo) return Promise.resolve(sliceTraceRange(demoTrace(agent), request));
+    const bridge = typeof window === 'undefined' ? undefined : window.agentMonitor;
+    if (!bridge) return Promise.reject(new Error('The native monitor is unavailable in this browser session.'));
+    return bridge.getTraceRange(agent.id, request);
+  }
 
   useEffect(() => {
-    let cancelled = false;
+    const generation = ++generationRef.current;
+    inFlightRef.current = false;
     setLoading(true);
     setError(undefined);
-    setEntries([]);
+    setPageError(undefined);
+    setLoad(emptyTraceLoad);
     setOpenDisclosure(new Set());
-
-    if (demo) {
-      setEntries(demoTrace(agent));
-      setLoading(false);
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    const bridge = typeof window === 'undefined' ? undefined : window.agentMonitor;
-    if (!bridge) {
+    if (!demo && typeof window !== 'undefined' && !window.agentMonitor) {
       setLoading(false);
       setError('The native monitor is unavailable in this browser session.');
-      return () => {
-        cancelled = true;
-      };
+      return;
     }
-
-    void bridge.getTrace(agent.id)
-      .then((nextEntries) => {
-        if (cancelled) return;
-        setEntries(nextEntries as TraceEntryDetails[]);
+    void fetchPage(firstRequest(order))
+      .then((page) => {
+        if (generation !== generationRef.current) return;
+        setLoad(mergePage(emptyTraceLoad, page));
         setLoading(false);
       })
       .catch(() => {
-        if (cancelled) return;
-        setEntries([]);
+        if (generation !== generationRef.current) return;
         setLoading(false);
         setError('Trace could not be loaded from the native monitor.');
       });
+  }, [agent.id, demo, refreshNonce, order]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [agent.id, demo, refreshNonce]);
+  /** Loads the given pages one after another; resolves false when a newer load replaced this one. */
+  async function loadPages(requests: TraceRangeRequest[]): Promise<boolean> {
+    if (inFlightRef.current || !requests.length) return true;
+    const generation = generationRef.current;
+    inFlightRef.current = true;
+    setPageError(undefined);
+    try {
+      for (const request of requests) {
+        const page = await fetchPage(request);
+        if (generation !== generationRef.current) return false;
+        setLoad((previous) => mergePage(previous, page));
+      }
+      return true;
+    } catch {
+      if (generation === generationRef.current) setPageError('More of the trace could not be loaded.');
+      return false;
+    } finally {
+      if (generation === generationRef.current) inFlightRef.current = false;
+    }
+  }
+
+  function loadMore() {
+    const request = nextRequest(loadRef.current, order);
+    if (request) void loadPages([request]);
+  }
+
+  async function jumpTo(edge: 'start' | 'end') {
+    const loaded = await loadPages(remainingRequests(loadRef.current, edge));
+    // The start is at the top when reading oldest first, at the bottom when reading newest first.
+    if (loaded) setPendingScroll((edge === 'start') === (order === 'oldest') ? 'top' : 'bottom');
+  }
+
+  // Keep loading while the end of the list is within about a screen of the viewport.
+  useEffect(() => {
+    const root = contentRef.current;
+    const sentinel = sentinelRef.current;
+    if (!root || !sentinel || loading || error || pageError || !nextRequest(load, order)) return;
+    const observer = new IntersectionObserver((records) => {
+      if (records.some((record) => record.isIntersecting)) loadMore();
+    }, { root, rootMargin: '0px 0px 800px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [load, order, loading, error, pageError]);
+
+  useLayoutEffect(() => {
+    const root = contentRef.current;
+    if (!pendingScroll || !root) return;
+    root.scrollTop = pendingScroll === 'top' ? 0 : root.scrollHeight;
+    setPendingScroll(undefined);
+  }, [pendingScroll, load]);
 
   const kindOptions = useMemo(() => [
     { value: 'all', label: 'All kinds' },
     ...TRACE_KINDS.map((traceKind) => ({ value: traceKind, label: TRACE_KIND_LABEL[traceKind] })),
   ], []);
 
-  const recentEntries = entries.length > MAX_RECENT_ENTRIES ? entries.slice(-MAX_RECENT_ENTRIES) : entries;
-  const groups = useMemo(() => groupTraceEntries(recentEntries), [recentEntries]);
+  const groups = useMemo(() => groupTraceEntries(load.entries as TraceEntryDetails[]), [load.entries]);
+  const fullyLoaded = load.start === 0 && load.end === load.total;
+  const more = nextRequest(load, order);
+  const remaining = order === 'oldest' ? load.total - load.end : load.start;
   const filteredGroups = useMemo(() => {
     const matches = filterConversationGroups(groups, search, kind);
     return order === 'newest' ? matches.reverse() : matches;
   }, [groups, kind, order, search]);
-  const isBounded = entries.length >= MAX_RECENT_ENTRIES;
   const hasFilter = Boolean(search.trim() || kind !== 'all');
   const subagents = agents.filter((candidate) => candidate.parentId === agent.id);
   const parent = agent.parentId ? agents.find((candidate) => candidate.id === agent.parentId) : undefined;
@@ -266,12 +319,12 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
 
   return (
     <section className="trace-workspace" aria-labelledby={`${searchId}-title`}>
-      <div className="trace-workspace__content">
+      <div ref={contentRef} className="trace-workspace__content">
         <div className="trace-workspace__list">
           <TraceHeader
             agent={agent}
             titleId={`${searchId}-title`}
-            itemCount={entries.length}
+            itemCount={load.total}
             subagents={subagents}
             parent={parent}
             loading={loading}
@@ -303,16 +356,14 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
                 saveOrder(next);
               }}
             />
+            <div className="trace-workspace__jump" role="group" aria-label="Jump">
+              <button type="button" className="trace-workspace__button" onClick={() => void jumpTo('start')} disabled={loading}>Jump to start</button>
+              <button type="button" className="trace-workspace__button" onClick={() => void jumpTo('end')} disabled={loading}>Jump to end</button>
+            </div>
             <div className="trace-workspace__count" aria-live="polite">
               {filteredGroups.length} of {groups.length} conversations
             </div>
           </div>
-
-          {isBounded && (
-            <p className="trace-workspace__notice">
-              Showing the most recent {Math.min(MAX_RECENT_ENTRIES, entries.length)} entries to keep the reader responsive.
-            </p>
-          )}
 
           {error && (
             <div className="trace-workspace__empty trace-workspace__empty--error" role="alert">
@@ -338,10 +389,18 @@ export function TraceWorkspace({ agent, agents = [], onOpenAgent, onOpenAgents, 
                 <ConversationCard
                   key={group.id}
                   group={group}
+                  fullyLoaded={fullyLoaded}
                   openDisclosure={openDisclosure}
                   onToggle={toggleDisclosure}
                 />
               ))}
+            </div>
+          )}
+          {!error && !loading && (
+            <div ref={sentinelRef} className="trace-workspace__more">
+              {pageError
+                ? <><span>{pageError}</span><button type="button" className="trace-workspace__button" onClick={loadMore}>Retry</button></>
+                : more && <button type="button" className="trace-workspace__button" onClick={loadMore}>Load more ({remaining.toLocaleString()} left)</button>}
             </div>
           )}
         </div>
@@ -441,7 +500,7 @@ function TraceHeader({ agent, titleId, itemCount, subagents, parent, loading, on
   );
 }
 
-function ConversationCard({ group, openDisclosure, onToggle }: { group: ConversationGroup } & DisclosureProps) {
+function ConversationCard({ group, fullyLoaded, openDisclosure, onToggle }: { group: ConversationGroup; fullyLoaded: boolean } & DisclosureProps) {
   const usage = conversationUsage(group);
   const duration = conversationDuration(group);
   const iso = isoFor(group.timestamp);
@@ -466,7 +525,7 @@ function ConversationCard({ group, openDisclosure, onToggle }: { group: Conversa
         {group.blocks.map((block, index) => {
           const key = `${group.id}:${block.type}:${index}`;
           if (block.type === 'tools') {
-            return <ToolGroup key={key} groupKey={key} tools={block.tools} openDisclosure={openDisclosure} onToggle={onToggle} />;
+            return <ToolGroup key={key} groupKey={key} tools={block.tools} fullyLoaded={fullyLoaded} openDisclosure={openDisclosure} onToggle={onToggle} />;
           }
           if (block.type === 'thinking') {
             return (
@@ -532,9 +591,10 @@ function Disclosure({ id, className, title, summary, openDisclosure, onToggle, c
   );
 }
 
-function ToolGroup({ groupKey, tools, openDisclosure, onToggle }: {
+function ToolGroup({ groupKey, tools, fullyLoaded, openDisclosure, onToggle }: {
   groupKey: string;
   tools: ConversationTool[];
+  fullyLoaded: boolean;
 } & DisclosureProps) {
   // Tool groups start expanded; each call's input and result start collapsed.
   const open = !openDisclosure.has(groupKey);
@@ -549,7 +609,7 @@ function ToolGroup({ groupKey, tools, openDisclosure, onToggle }: {
       {open && (
         <ul className="trace-tools__tree">
           {tools.map((tool, index) => (
-            <ToolRow key={`${groupKey}:${tool.call.id}:${index}`} tool={tool} toolKey={`${groupKey}:tool:${index}`} openDisclosure={openDisclosure} onToggle={onToggle} />
+            <ToolRow key={`${groupKey}:${tool.call.id}:${index}`} tool={tool} toolKey={`${groupKey}:tool:${index}`} fullyLoaded={fullyLoaded} openDisclosure={openDisclosure} onToggle={onToggle} />
           ))}
         </ul>
       )}
@@ -557,9 +617,10 @@ function ToolGroup({ groupKey, tools, openDisclosure, onToggle }: {
   );
 }
 
-function ToolRow({ tool, toolKey, openDisclosure, onToggle }: {
+function ToolRow({ tool, toolKey, fullyLoaded, openDisclosure, onToggle }: {
   tool: ConversationTool;
   toolKey: string;
+  fullyLoaded: boolean;
 } & DisclosureProps) {
   const open = openDisclosure.has(toolKey);
   const input = getToolInput(tool.call);
@@ -577,7 +638,7 @@ function ToolRow({ tool, toolKey, openDisclosure, onToggle }: {
       </button>
       <div className="trace-tool__preview">
         <span aria-hidden="true" />
-        {tool.result ? preview(resultText, 240) : 'No result in the retained trace.'}
+        {tool.result ? preview(resultText, 240) : fullyLoaded ? 'No result in the retained trace.' : 'Result not loaded yet'}
       </div>
       {open && (
         <div className="trace-tool__details">
