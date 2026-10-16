@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatPayload, payloadPreview, payloadText } from '../src/renderer/formatPayload';
+import { formatPayload, payloadPreview, payloadText, type PayloadView } from '../src/renderer/formatPayload';
 
 test('text that is not a JSON object stays text', () => {
   assert.deepEqual(formatPayload('ls -la\nexit 0'), { kind: 'text', text: 'ls -la\nexit 0' });
@@ -66,4 +66,41 @@ test('long single-line strings become blocks, short ones stay inline', () => {
       { key: 'subagent_type', value: { kind: 'scalar', text: 'Explore' } },
     ],
   });
+});
+
+/** Keys of the original object that the decorated view shows, in any layout. */
+function shownKeys(view: PayloadView): string[] {
+  const rest = 'fields' in view ? view.fields.map((field) => field.key) : [];
+  if (view.kind === 'command') return [...(view.description !== undefined ? ['description'] : []), 'command', ...rest];
+  if (view.kind === 'edit') return ['file_path', 'old_string', 'new_string', ...rest];
+  if (view.kind === 'file') return ['file_path', 'content', ...rest];
+  return rest;
+}
+
+test('renamed fields fall back to the generic view and nothing is dropped', () => {
+  const renamed = { cmd: 'ls -la\npwd', desc: 'List files' };
+  const view = formatPayload(JSON.stringify(renamed));
+  assert.deepEqual(view, {
+    kind: 'fields',
+    fields: [
+      { key: 'cmd', value: { kind: 'block', text: 'ls -la\npwd' } },
+      { key: 'desc', value: { kind: 'scalar', text: 'List files' } },
+    ],
+  });
+  const renamedEdit = formatPayload(JSON.stringify({ path: '/repo/a.ts', before: 'a', after: 'b' }));
+  assert.equal(renamedEdit.kind, 'fields');
+});
+
+test('every field of a payload is shown, whichever layout it gets', () => {
+  const payloads = [
+    { command: 'ls', description: 'List', timeout: 1, run_in_background: true },
+    { command: 'ls', sandbox: { network: false } },
+    { file_path: '/a', old_string: 'x', new_string: 'y', replace_all: false, extra: [1, 2] },
+    { file_path: '/a', content: 'text', encoding: 'utf8' },
+    { cmd: 'ls', desc: 'renamed', nested: { deep: { deeper: 'value' } } },
+  ];
+  for (const payload of payloads) {
+    const view = formatPayload(JSON.stringify(payload));
+    assert.deepEqual(shownKeys(view).sort(), Object.keys(payload).sort(), `${view.kind} view of ${JSON.stringify(payload)}`);
+  }
 });
