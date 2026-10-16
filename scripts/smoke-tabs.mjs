@@ -63,7 +63,8 @@ async function main() {
     const traceRoot = path.join(tempRoot, 'codex-sessions');
     await mkdir(traceRoot, { recursive: true });
     const recent = new Date();
-    const old = new Date('2026-01-01T00:00:00Z');
+    // Older than the fillers so it sorts last, but recent enough for the default run filter (last month).
+    const old = new Date(Date.now() - 2 * 3600_000);
 
     // Enough recent runs to make the run list scroll; the long run is the oldest, at the bottom.
     for (let index = 0; index < 40; index += 1) {
