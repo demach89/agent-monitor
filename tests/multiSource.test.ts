@@ -33,3 +33,20 @@ test('selection across file/database sources releases prior traces and preserves
   assert.equal(monitor.snapshot().runs.length,2);
   await monitor.stop();
 });
+
+class TitledSource extends Source {
+  constructor(id: string, harness: Agent['harness'], private readonly titles: Record<string, string>) { super(id, harness); }
+  async getRunTitle(runId: string) { return this.titles[runId]; }
+}
+
+test('agent titles come from whichever source knows the run, loaded or not', async () => {
+  const files = new TitledSource('claude:a', 'claude', { 'claude:a': 'Review the PR' });
+  const codex = new TitledSource('b', 'codex', { b: 'Fix the build' });
+  const database = new Source('hermes:c', 'hermes');
+  const monitor = new MultiSourceMonitor([files, codex, database]);
+  await monitor.start();
+  assert.equal(await monitor.getRunTitle('b'), 'Fix the build');
+  assert.equal(await monitor.getRunTitle('claude:a'), 'Review the PR');
+  assert.equal(await monitor.getRunTitle('hermes:c'), undefined);
+  await monitor.stop();
+});
