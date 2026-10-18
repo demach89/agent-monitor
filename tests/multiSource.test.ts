@@ -68,3 +68,15 @@ test('agent titles come from whichever source knows the run, loaded or not', asy
   assert.equal(await monitor.getRunTitle('hermes:c'), undefined);
   await monitor.stop();
 });
+
+class NamedSource extends Source {
+  constructor(id: string, harness: Agent['harness'], private readonly names: Record<string, string>) { super(id, harness); }
+  async getAgentNames() { return this.names; }
+}
+
+test('agent names from every source are combined', async () => {
+  const monitor = new MultiSourceMonitor([new NamedSource('claude:a', 'claude', { 'claude:a': 'A' }), new NamedSource('b', 'codex', { b: 'B' }), new Source('hermes:c', 'hermes')]);
+  await monitor.start();
+  assert.deepEqual(await monitor.getAgentNames(), { 'claude:a': 'A', b: 'B' });
+  await monitor.stop();
+});

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { RunNameStore } from '../src/main/runNames';
-import { claudeTitle, codexThreadNames } from '../src/main/trace-monitor/agentTitles';
+import { claudeCustomTitle, claudeTitle, codexThreadNames } from '../src/main/trace-monitor/agentTitles';
 import { TraceMonitor } from '../src/main/trace-monitor/TraceMonitor';
 
 async function tempDir() {
@@ -88,6 +88,43 @@ test('the monitor gives the agent title of any discovered run without loading it
     assert.equal(await monitor.getRunTitle('codex-thread'), 'Fix the build');
     assert.equal(await monitor.getRunTitle('claude:claude-session'), 'Review the PR');
     assert.equal(await monitor.getRunTitle('unknown'), undefined);
+  } finally {
+    await monitor.stop();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('a name set in Claude Code is read wherever it is in the file, the latest winning', async () => {
+  const dir = await tempDir();
+  try {
+    const file = path.join(dir, 'session.jsonl');
+    const filler = Array.from({ length: 3000 }, (_, index) => line({ type: 'assistant', message: { content: `filler ${index} ${'x'.repeat(100)}` } })).join('');
+    await writeFile(file, line({ type: 'custom-title', customTitle: 'Early name' }) + filler + line({ type: 'ai-title', aiTitle: 'Auto title' }));
+    assert.equal(await claudeCustomTitle(file), 'Early name');
+    await writeFile(file, line({ type: 'custom-title', customTitle: 'Early name' }) + filler + line({ type: 'custom-title', customTitle: 'Renamed' }));
+    assert.equal(await claudeCustomTitle(file), 'Renamed');
+    await writeFile(file, line({ type: 'ai-title', aiTitle: 'Auto title' }));
+    assert.equal(await claudeCustomTitle(file), undefined);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('agent names cover Codex thread names and Claude names, and nothing for other runs', async () => {
+  const dir = await tempDir();
+  const root = path.join(dir, 'sessions');
+  await mkdir(path.join(root, 'project'), { recursive: true });
+  await writeFile(path.join(root, 'codex-thread.jsonl'), line({ type: 'session_meta', payload: { id: 'codex-thread', cwd: '/tmp/a', thread_source: 'user' } }));
+  await writeFile(path.join(root, 'codex-unnamed.jsonl'), line({ type: 'session_meta', payload: { id: 'codex-unnamed', cwd: '/tmp/c', thread_source: 'user' } }));
+  await writeFile(path.join(dir, 'session_index.jsonl'), line({ id: 'codex-thread', thread_name: 'Fix the build' }));
+  await writeFile(path.join(root, 'project', 'claude-named.jsonl'), line({ type: 'user', sessionId: 'claude-named', uuid: 'u1', cwd: '/tmp/b', message: { role: 'user', content: 'Hi' } })
+    + line({ type: 'custom-title', customTitle: 'My review', sessionId: 'claude-named' }) + line({ type: 'ai-title', aiTitle: 'Auto', sessionId: 'claude-named' }));
+  await writeFile(path.join(root, 'project', 'claude-auto.jsonl'), line({ type: 'user', sessionId: 'claude-auto', uuid: 'u2', cwd: '/tmp/d', message: { role: 'user', content: 'Hi' } })
+    + line({ type: 'ai-title', aiTitle: 'Only auto', sessionId: 'claude-auto' }));
+  const monitor = new TraceMonitor({ roots: [root] });
+  try {
+    await monitor.start();
+    assert.deepEqual(await monitor.getAgentNames(), { 'codex-thread': 'Fix the build', 'claude:claude-named': 'My review' });
   } finally {
     await monitor.stop();
     await rm(dir, { recursive: true, force: true });

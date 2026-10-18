@@ -76,6 +76,7 @@ else {
       assertSender(event);
       return monitor.getRunTitle(runIdentifier(runId));
     });
+    ipcMain.handle('monitor:agent-names', event => { assertSender(event); return monitor.getAgentNames(); });
     ipcMain.handle('monitor:run-names', event => { assertSender(event); return runNames.all(); });
     ipcMain.handle('monitor:rename-run', (event, runId: unknown, name: unknown) => {
       assertSender(event);
