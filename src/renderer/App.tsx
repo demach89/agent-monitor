@@ -968,6 +968,18 @@ function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, 
       void request.catch(() => undefined).then((title) => setAgentTitles((previous) => ({ ...previous, [run.id]: title ?? '' })));
     }, TITLE_POPUP_DELAY_MS);
   }
+  /** The name and folder lines both show the agent's title on hover and start renaming on double-click. */
+  function titleTarget(run: AgentRun) {
+    return {
+      onMouseEnter: (event: React.MouseEvent<HTMLElement>) => showTitle(run, event.currentTarget),
+      onMouseLeave: hideTitle,
+      onDoubleClick: (event: React.MouseEvent<HTMLElement>) => {
+        event.preventDefault();
+        hideTitle();
+        setEditingRunId(run.id);
+      },
+    };
+  }
   function hideTitle() {
     window.clearTimeout(titleTimer.current);
     setHoveredTitle(undefined);
@@ -1027,31 +1039,22 @@ function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, 
                           setEditingRunId(undefined);
                         }
                       }} />
-                  : <span className="run-item__path" data-cwd={run.cwd}
-                      onMouseEnter={(event) => showTitle(run, event.currentTarget)}
-                      onMouseLeave={hideTitle}
-                      onDoubleClick={(event) => {
+                  : runNames[run.id] && <span className="run-item__name" {...titleTarget(run)}>{match?.field === 'custom' ? <Highlighted text={match.text} query={query} /> : runNames[run.id]}</span>}
+                <span className="run-item__path" data-cwd={run.cwd} {...titleTarget(run)}>
+                  <span className="run-item__label">{match?.field === 'name' ? <Highlighted text={match.text} query={query} /> : runName(run)}</span>
+                  {!runNames[run.id] && !editing && (
+                    // A span, not a button: it sits inside the run's button. Clicking it names the run without opening it.
+                    <span className="run-item__pencil" aria-label="Name this run" title="Name this run"
+                      onClick={(event) => {
                         event.preventDefault();
+                        event.stopPropagation();
                         hideTitle();
                         setEditingRunId(run.id);
                       }}>
-                      <span className="run-item__label">
-                        {runNames[run.id] && <><span className="run-item__name">{match?.field === 'custom' ? <Highlighted text={match.text} query={query} /> : runNames[run.id]}</span><span className="run-item__folder"> · </span></>}
-                        <span className={runNames[run.id] ? 'run-item__folder' : undefined}>{match?.field === 'name' ? <Highlighted text={match.text} query={query} /> : runName(run)}</span>
-                      </span>
-                      {!runNames[run.id] && (
-                        // A span, not a button: it sits inside the run's button. Clicking it names the run without opening it.
-                        <span className="run-item__pencil" aria-label="Name this run" title="Name this run"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            hideTitle();
-                            setEditingRunId(run.id);
-                          }}>
-                          <Pencil size={12} aria-hidden="true" />
-                        </span>
-                      )}
-                    </span>}
+                      <Pencil size={12} aria-hidden="true" />
+                    </span>
+                  )}
+                </span>
                 {!editing && (match?.field === 'id' || match?.field === 'path') && <span className="run-item__match" title={match.text}><Highlighted text={match.text} query={query} /></span>}
                 <span className="run-item__meta">
                   <span className="run-item__time" title={loading ? undefined : runTimeTitle(run)}>{loading ? 'loading agents…' : formatAbsoluteTime(run.startedAt ?? run.lastActivityAt)}</span>
@@ -1074,6 +1077,7 @@ function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, 
         {outsideMatches > 0 && <div className="sidebar__empty">{outsideMatches} more outside the filters. <button type="button" className="sidebar__clear" onClick={() => onFiltersChange({ period: 'all', project: 'all' })}>Show all</button></div>}
         {hoveredTitle && (
           <div className="run-title-popup" role="tooltip" style={{ left: hoveredTitle.left, top: hoveredTitle.top }}>
+            {runNames[hoveredTitle.run.id] && <><div className="run-title-popup__label">Name</div><div>{runNames[hoveredTitle.run.id]}</div></>}
             <div className="run-title-popup__label">Agent title</div>
             <div className={agentTitles[hoveredTitle.run.id] ? '' : 'run-title-popup__empty'}>
               {hoveredTitle.run.id in agentTitles ? agentTitles[hoveredTitle.run.id] || 'No title from the agent' : 'Loading…'}

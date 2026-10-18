@@ -62,14 +62,20 @@ async function main() {
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(error));
     const label = cwd => page.locator(`button.run-item .run-item__path[data-cwd="${cwd}"]`);
-    const text = async cwd => (await label(cwd).innerText()).replace(/\s+/g, ' ').trim();
+    const row = cwd => page.locator('button.run-item', { has: page.locator(`.run-item__path[data-cwd="${cwd}"]`) });
+    // A named run shows its name on its own line above the folder: "name | folder".
+    const text = async cwd => {
+      const name = row(cwd).locator('.run-item__name');
+      const folder = (await label(cwd).innerText()).trim();
+      return await name.count() ? `${(await name.innerText()).trim()} | ${folder}` : folder;
+    };
     const popup = () => page.locator('.run-title-popup');
     const pencil = cwd => page.locator('button.run-item', { has: page.locator(`.run-item__path[data-cwd="${cwd}"]`) }).getByLabel('Name this run');
     const input = page.getByRole('textbox', { name: 'Run name' });
     await waitFor('all runs', async () => await page.locator('button.run-item').count() === 3);
 
     // Names kept by the agents show by default: Codex thread names and names given in Claude Code.
-    await waitFor('the agent names', async () => await text(codexCwd) === 'Check the SSH connection · artem' && await text(claudeCwd) === 'Blog draft · blog');
+    await waitFor('the agent names', async () => await text(codexCwd) === 'Check the SSH connection | artem' && await text(claudeCwd) === 'Blog draft | blog');
     if (await text(plainCwd) !== 'plain') throw new Error(`an unnamed run shows "${await text(plainCwd)}"`);
 
     // Hovering shows the agent's own title: Claude's latest automatic title, Codex's thread name.
@@ -79,6 +85,7 @@ async function main() {
     await label(codexCwd).hover();
     await waitFor('the Codex title', async () => (await popup().innerText()).includes('Check the SSH connection'));
 
+
     // Only a run with no name at all offers the pencil, which names it without opening it.
     if (await pencil(codexCwd).count() || await pencil(claudeCwd).count()) throw new Error('a named run shows the pencil');
     await pencil(plainCwd).click();
@@ -86,12 +93,27 @@ async function main() {
     await input.press('Escape');
     if (await page.locator('button.run-item.run-item--selected').count()) throw new Error('the pencil opened the run');
 
+    // A long name is cut on its line and shown in full in the popup.
+    const longName = 'A very long automatic name that does not fit into the sidebar row at all';
+    await label(plainCwd).dblclick();
+    await input.fill(longName);
+    await input.press('Enter');
+    const nameLine = row(plainCwd).locator('.run-item__name');
+    await waitFor('the long name on its own line', async () => await nameLine.count() === 1 && (await label(plainCwd).innerText()).trim() === 'plain');
+    if (!await nameLine.evaluate(element => element.scrollWidth > element.clientWidth)) throw new Error('the long name is not cut to its line');
+    await nameLine.hover();
+    await waitFor('the full name in the popup', async () => (await popup().innerText()).includes(longName));
+    await label(plainCwd).dblclick();
+    await input.fill('');
+    await input.press('Enter');
+    await waitFor('the run unnamed again', async () => await text(plainCwd) === 'plain');
+
     // Double-click renames, starting from the shown name; Enter saves.
     await label(codexCwd).dblclick();
     if (await input.inputValue() !== 'Check the SSH connection') throw new Error('the editor does not start from the shown name');
     await input.fill('VPS review');
     await input.press('Enter');
-    await waitFor('the saved name', async () => await text(codexCwd) === 'VPS review · artem');
+    await waitFor('the saved name', async () => await text(codexCwd) === 'VPS review | artem');
 
     // The run search finds a run by its name.
     const search = page.getByRole('searchbox', { name: 'Search runs' });
@@ -104,7 +126,7 @@ async function main() {
     await label(codexCwd).dblclick();
     await input.fill('Something else');
     await input.press('Escape');
-    await waitFor('the edit cancelled', async () => !await input.isVisible() && await text(codexCwd) === 'VPS review · artem');
+    await waitFor('the edit cancelled', async () => !await input.isVisible() && await text(codexCwd) === 'VPS review | artem');
 
     // Saving an agent's name unchanged stores nothing.
     await label(claudeCwd).dblclick();
@@ -114,7 +136,7 @@ async function main() {
     await electronApp.close();
     page = await launch();
     page.on('pageerror', error => pageErrors.push(error));
-    await waitFor('the name after restart', async () => await text(codexCwd) === 'VPS review · artem');
+    await waitFor('the name after restart', async () => await text(codexCwd) === 'VPS review | artem');
     const stored = JSON.parse(await readFile(path.join(userData, 'run-names.json'), 'utf8'));
     if (JSON.stringify(stored) !== JSON.stringify({ 'codex-thread': 'VPS review' })) throw new Error(`unexpected names file: ${JSON.stringify(stored)}`);
 
@@ -122,7 +144,7 @@ async function main() {
     await label(codexCwd).dblclick();
     await page.getByRole('textbox', { name: 'Run name' }).fill('');
     await page.getByRole('textbox', { name: 'Run name' }).press('Enter');
-    await waitFor('the agent name back', async () => await text(codexCwd) === 'Check the SSH connection · artem');
+    await waitFor('the agent name back', async () => await text(codexCwd) === 'Check the SSH connection | artem');
 
     if (pageErrors.length) throw new Error(`renderer errors: ${pageErrors.map(String).join('; ')}`);
     console.log('PASS: runs show the agent title on hover and can be renamed in place, kept across restarts');
