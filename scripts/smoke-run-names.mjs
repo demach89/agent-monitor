@@ -84,6 +84,9 @@ async function main() {
     if (!(await popup().innerText()).includes(claudeCwd)) throw new Error('the popup does not show the folder');
     await label(codexCwd).hover();
     await waitFor('the Codex title', async () => (await popup().innerText()).includes('Check the SSH connection'));
+    // The name equals the agent's title here, so the popup shows it once, as the agent title.
+    const popupLabels = () => popup().locator('.run-title-popup__label').evaluateAll(labels => labels.map(label => label.textContent));
+    if ((await popupLabels()).includes('Name')) throw new Error('the popup repeats a name equal to the agent title');
 
 
     // Only a run with no name at all offers the pencil, which names it without opening it.
@@ -114,6 +117,13 @@ async function main() {
     await input.fill('VPS review');
     await input.press('Enter');
     await waitFor('the saved name', async () => await text(codexCwd) === 'VPS review | artem');
+    // A name different from the agent's title shows both. Move away first: the pointer is still over this row.
+    await label(plainCwd).hover();
+    await label(codexCwd).hover();
+    await waitFor('both the name and the agent title', async () => {
+      const labels = await popupLabels();
+      return labels.includes('Name') && labels.includes('Agent title') && (await popup().innerText()).includes('VPS review');
+    });
 
     // The run search finds a run by its name.
     const search = page.getByRole('searchbox', { name: 'Search runs' });
