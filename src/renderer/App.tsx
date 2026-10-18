@@ -993,7 +993,9 @@ function Sidebar({ runs, runNames, onRename, agents, selectedRunId, loadedRunId,
         {!runs.length && <div className="sidebar__empty">No runs discovered yet.</div>}
         {hoveredTitle && (
           <div className="run-title-popup" role="tooltip" style={{ left: hoveredTitle.left, top: hoveredTitle.top }}>
-            {runNames[hoveredTitle.run.id] && <><div className="run-title-popup__label">Name</div><div>{runNames[hoveredTitle.run.id]}</div></>}
+            {/* The name is shown only once the agent title is known and differs from it, so it neither repeats nor flickers. */}
+            {runNames[hoveredTitle.run.id] && hoveredTitle.run.id in agentTitles && runNames[hoveredTitle.run.id] !== agentTitles[hoveredTitle.run.id]
+              && <><div className="run-title-popup__label">Name</div><div>{runNames[hoveredTitle.run.id]}</div></>}
             <div className="run-title-popup__label">Agent title</div>
             <div className={agentTitles[hoveredTitle.run.id] ? '' : 'run-title-popup__empty'}>
               {hoveredTitle.run.id in agentTitles ? agentTitles[hoveredTitle.run.id] || 'No title from the agent' : 'Loading…'}
