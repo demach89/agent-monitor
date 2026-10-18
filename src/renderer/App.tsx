@@ -13,6 +13,7 @@ import {
   Play,
   Radio,
   RefreshCw,
+  Pencil,
   Search,
   SquareArrowOutUpRight,
   Target,
@@ -1034,8 +1035,22 @@ function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, 
                         hideTitle();
                         setEditingRunId(run.id);
                       }}>
-                      {runNames[run.id] && <><span className="run-item__name">{match?.field === 'custom' ? <Highlighted text={match.text} query={query} /> : runNames[run.id]}</span><span className="run-item__folder"> · </span></>}
-                      <span className={runNames[run.id] ? 'run-item__folder' : undefined}>{match?.field === 'name' ? <Highlighted text={match.text} query={query} /> : runName(run)}</span>
+                      <span className="run-item__label">
+                        {runNames[run.id] && <><span className="run-item__name">{match?.field === 'custom' ? <Highlighted text={match.text} query={query} /> : runNames[run.id]}</span><span className="run-item__folder"> · </span></>}
+                        <span className={runNames[run.id] ? 'run-item__folder' : undefined}>{match?.field === 'name' ? <Highlighted text={match.text} query={query} /> : runName(run)}</span>
+                      </span>
+                      {!runNames[run.id] && (
+                        // A span, not a button: it sits inside the run's button. Clicking it names the run without opening it.
+                        <span className="run-item__pencil" aria-label="Name this run" title="Name this run"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            hideTitle();
+                            setEditingRunId(run.id);
+                          }}>
+                          <Pencil size={12} aria-hidden="true" />
+                        </span>
+                      )}
                     </span>}
                 {!editing && (match?.field === 'id' || match?.field === 'path') && <span className="run-item__match" title={match.text}><Highlighted text={match.text} query={query} /></span>}
                 <span className="run-item__meta">
