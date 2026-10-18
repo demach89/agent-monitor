@@ -13,6 +13,7 @@ import {
   Play,
   Radio,
   RefreshCw,
+  Pencil,
   Search,
   SquareArrowOutUpRight,
   Target,
@@ -954,9 +955,23 @@ function Sidebar({ runs, runNames, onRename, agents, selectedRunId, loadedRunId,
                         hideTitle();
                         setEditingRunId(run.id);
                       }}>
-                      {runNames[run.id]
-                        ? <><span className="run-item__name">{runNames[run.id]}</span><span className="run-item__folder"> · {folderName(run)}</span></>
-                        : folderName(run)}
+                      <span className="run-item__label">
+                        {runNames[run.id]
+                          ? <><span className="run-item__name">{runNames[run.id]}</span><span className="run-item__folder"> · {folderName(run)}</span></>
+                          : folderName(run)}
+                      </span>
+                      {!runNames[run.id] && (
+                        // A span, not a button: it sits inside the run's button. Clicking it names the run without opening it.
+                        <span className="run-item__pencil" aria-label="Name this run" title="Name this run"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            hideTitle();
+                            setEditingRunId(run.id);
+                          }}>
+                          <Pencil size={12} aria-hidden="true" />
+                        </span>
+                      )}
                     </span>}
                 <span className="run-item__meta">
                   <span className="run-item__time">{loading ? 'loading agents…' : formatRelative(run.lastActivityAt ?? run.startedAt)}</span>

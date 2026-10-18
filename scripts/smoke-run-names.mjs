@@ -67,12 +67,22 @@ async function main() {
     await label(claudeCwd).hover();
     await waitFor('the latest Claude title', async () => (await popup().innerText()).includes('Latest title'));
 
+    // An unnamed run offers a pencil that starts naming without opening the run.
+    const pencil = cwd => page.locator('button.run-item', { has: page.locator(`.run-item__path[data-cwd="${cwd}"]`) }).getByLabel('Name this run');
+    await pencil(claudeCwd).click();
+    const pencilInput = page.getByRole('textbox', { name: 'Run name' });
+    await waitFor('the editor from the pencil', () => pencilInput.isVisible());
+    await pencilInput.press('Escape');
+    if (await page.locator('button.run-item.run-item--selected').count()) throw new Error('the pencil opened the run');
+
     // Double-click renames; Enter saves.
     await label(codexCwd).dblclick();
     const input = page.getByRole('textbox', { name: 'Run name' });
     await input.fill('VPS review');
     await input.press('Enter');
     await waitFor('the saved name', async () => (await label(codexCwd).innerText()).replace(/\s+/g, ' ').trim() === 'VPS review · artem');
+    if (await pencil(codexCwd).count()) throw new Error('a named run still shows the pencil');
+    if (!await pencil(claudeCwd).count()) throw new Error('an unnamed run lost its pencil');
 
     // Escape cancels an edit.
     await label(codexCwd).dblclick();
