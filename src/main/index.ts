@@ -4,6 +4,7 @@ import { TraceMonitor } from './trace-monitor/TraceMonitor';
 import { HermesMonitor } from './trace-monitor/HermesMonitor';
 import { MultiSourceMonitor } from './trace-monitor/MultiSourceMonitor';
 import type { TraceRangeRequest } from '../shared/types';
+import { RunNameStore } from './runNames';
 
 let window: BrowserWindow | null = null;
 const idle = Number(process.env.AGENT_MONITOR_IDLE_MS);
@@ -65,6 +66,21 @@ else {
       assertSender(event);
       if (typeof agentId !== 'string' || agentId.length > 1024) throw new Error('Invalid agent identifier');
       return monitor.getTraceRange(agentId, traceRangeRequest(request));
+    });
+    const runNames = new RunNameStore(path.join(app.getPath('userData'), 'run-names.json'));
+    const runIdentifier = (runId: unknown) => {
+      if (typeof runId !== 'string' || !runId || runId.length > 1024) throw new Error('Invalid run identifier');
+      return runId;
+    };
+    ipcMain.handle('monitor:run-title', (event, runId: unknown) => {
+      assertSender(event);
+      return monitor.getRunTitle(runIdentifier(runId));
+    });
+    ipcMain.handle('monitor:run-names', event => { assertSender(event); return runNames.all(); });
+    ipcMain.handle('monitor:rename-run', (event, runId: unknown, name: unknown) => {
+      assertSender(event);
+      if (typeof name !== 'string' || name.length > 1000) throw new Error('Invalid run name');
+      return runNames.set(runIdentifier(runId), name);
     });
     ipcMain.handle('monitor:load-run', (event, runId: unknown) => {
       assertSender(event);

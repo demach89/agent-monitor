@@ -5,6 +5,9 @@ const bridge: MonitorBridge = {
   getSnapshot: () => ipcRenderer.invoke('monitor:snapshot'),
   getTrace: agentId => ipcRenderer.invoke('monitor:trace', agentId),
   getTraceRange: (agentId, request) => ipcRenderer.invoke('monitor:trace-range', agentId, request),
+  getRunTitle: runId => ipcRenderer.invoke('monitor:run-title', runId),
+  getRunNames: () => ipcRenderer.invoke('monitor:run-names'),
+  renameRun: (runId, name) => ipcRenderer.invoke('monitor:rename-run', runId, name),
   loadRun: runId => ipcRenderer.invoke('monitor:load-run', runId),
   onSnapshot: callback => {
     const listener = (_event: Electron.IpcRendererEvent, snapshot: MonitorSnapshot) => callback(snapshot);
