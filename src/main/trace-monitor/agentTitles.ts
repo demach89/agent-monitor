@@ -1,4 +1,5 @@
-import { promises as fs } from 'node:fs';
+import { createReadStream, promises as fs } from 'node:fs';
+import { createInterface } from 'node:readline';
 
 /** Bytes read from the end of a Claude session first; titles are appended as the session goes on. */
 const TAIL_BYTES = 256 * 1024;
@@ -52,4 +53,23 @@ export async function codexThreadNames(indexFile: string): Promise<Map<string, s
     }
   }
   return names;
+}
+
+/**
+ * The name the user gave a Claude Code session (`/rename` or `claude --name`), stored as `custom-title` records.
+ * It can be anywhere in the file, so the whole file is streamed; the latest record wins.
+ */
+export async function claudeCustomTitle(file: string): Promise<string | undefined> {
+  let title: string | undefined;
+  const lines = createInterface({ input: createReadStream(file, { encoding: 'utf8' }), crlfDelay: Infinity });
+  for await (const line of lines) {
+    if (!line.includes('"custom-title"')) continue;
+    try {
+      const value = JSON.parse(line) as { type?: unknown; customTitle?: unknown };
+      if (value.type === 'custom-title' && typeof value.customTitle === 'string') title = value.customTitle.trim() || undefined;
+    } catch {
+      // Skip a damaged line.
+    }
+  }
+  return title;
 }

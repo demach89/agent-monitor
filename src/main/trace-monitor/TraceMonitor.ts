@@ -13,7 +13,7 @@ import {
 } from '../../traces/registry';
 import type { CodexObservation, TraceRecord } from '../../traces/codex';
 import { UsageAccumulator } from '../../traces/usage-accounting';
-import { claudeTitle, codexThreadNames } from './agentTitles';
+import { claudeCustomTitle, claudeTitle, codexThreadNames } from './agentTitles';
 
 export interface TraceMonitorOptions {
   roots?: string[];
@@ -239,6 +239,8 @@ export class TraceMonitor extends EventEmitter {
   private readonly observedSignatures = new Map<string, FileSignature>();
   private readonly traces = new Map<string, TraceEntry[]>();
   private readonly claudeTitles = new Map<string, { size: number; mtimeMs: number; title?: string }>();
+  private readonly claudeNames = new Map<string, { size: number; mtimeMs: number; name?: string }>();
+  private agentNamesRead?: Promise<Record<string, string>>;
   private readonly codexIndexes = new Map<string, { mtimeMs: number; names: Map<string, string> }>();
   private readonly errors: string[] = [];
   private watcher?: FSWatcher;
@@ -459,6 +461,49 @@ export class TraceMonitor extends EventEmitter {
       return undefined;
     }
     return undefined;
+  }
+
+  /**
+   * Names the agents keep for discovered runs: Codex thread names from `session_index.jsonl`, and names users gave
+   * Claude Code sessions (`custom-title`). Other agents have none. Files are read once and cached by size and mtime;
+   * concurrent callers share one read.
+   */
+  getAgentNames(): Promise<Record<string, string>> {
+    this.agentNamesRead ??= this.readAgentNames().finally(() => {
+      this.agentNamesRead = undefined;
+    });
+    return this.agentNamesRead;
+  }
+
+  private async readAgentNames(): Promise<Record<string, string>> {
+    const names: Record<string, string> = {};
+    const runIds = new Set(this.snapshot().runs.map((run) => run.id));
+    for (const entry of this.inventory.values()) {
+      const runId = entry.agent.id;
+      if (!runIds.has(runId)) continue;
+      try {
+        if (entry.agent.harness === 'codex') {
+          for (const root of this.roots) {
+            const name = (await this.codexIndex(path.join(path.dirname(root), 'session_index.jsonl'))).get(entry.agent.threadId ?? runId);
+            if (name) {
+              names[runId] = name;
+              break;
+            }
+          }
+        } else if (entry.agent.harness === 'claude') {
+          const stat = await fs.stat(entry.path);
+          let cached = this.claudeNames.get(entry.path);
+          if (!cached || cached.size !== stat.size || cached.mtimeMs !== stat.mtimeMs) {
+            cached = { size: stat.size, mtimeMs: stat.mtimeMs, name: await claudeCustomTitle(entry.path) };
+            this.claudeNames.set(entry.path, cached);
+          }
+          if (cached.name) names[runId] = cached.name;
+        }
+      } catch {
+        // A file that disappeared or cannot be read simply has no agent name.
+      }
+    }
+    return names;
   }
 
   private async codexIndex(indexFile: string): Promise<Map<string, string>> {

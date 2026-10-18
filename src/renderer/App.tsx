@@ -1012,7 +1012,12 @@ function App() {
   useEffect(() => {
     void window.agentMonitor?.getRunNames().then(setRunNames, () => undefined);
   }, []);
+  // Names the agents keep (Codex thread names, names given in Claude Code); the reader's own names win.
+  const [agentNames, setAgentNames] = useState<Record<string, string>>({});
+  const shownNames = useMemo(() => ({ ...agentNames, ...runNames }), [agentNames, runNames]);
   const renameRun = useCallback((runId: string, name: string) => {
+    // Saving the agent's name unchanged keeps following the agent instead of storing a copy.
+    if (!runNames[runId] && name.trim() === (agentNames[runId] ?? '')) return;
     const bridge = window.agentMonitor;
     if (!bridge) {
       // Without the native monitor (demo in a browser) names last for this session only.
@@ -1025,7 +1030,7 @@ function App() {
       return;
     }
     void bridge.renameRun(runId, name).then(setRunNames, () => undefined);
-  }, []);
+  }, [agentNames, runNames]);
   const openTrace = useCallback((agent: Agent) => {
     setTraceTabs(tabs => tabs.some(tab => tab.id === agent.id) ? tabs : [...tabs, agent]);
     setActiveTraceId(agent.id);
@@ -1038,6 +1043,13 @@ function App() {
     if (activeTraceId === id) setActiveTraceId(null);
   };
   const { snapshot: sourceSnapshot, mode, setDemo, setLive, usingDemo, loadedRunId, loadingRunId, runLoadError, loadRun } = useMonitorSnapshot();
+  useEffect(() => {
+    const bridge = window.agentMonitor;
+    if (!bridge || !sourceSnapshot.runs.length) return;
+    // The monitor caches agent names by file, so refreshing after snapshot changes is cheap.
+    const timer = window.setTimeout(() => void bridge.getAgentNames().then(setAgentNames, () => undefined), 1_000);
+    return () => window.clearTimeout(timer);
+  }, [sourceSnapshot]);
   const { providerFilter, selectedRunId, selectedAgentId, setProviderFilter, selectRun, selectAgent } = useDashboardStore();
 
   const runs = useMemo(() => [...sourceSnapshot.runs].filter((run) => providerFilter === 'all' || run.harness === providerFilter).sort(runSort), [providerFilter, sourceSnapshot.runs]);
@@ -1136,7 +1148,7 @@ function App() {
 
   return (
     <div className="app-shell">
-      {!expandedAgent && <Sidebar runs={runs} runNames={runNames} onRename={renameRun} agents={agents} selectedRunId={selectedRun?.id} loadedRunId={loadedRunId} runTokenSummaries={runTokenSummaries} onSelectRun={handleRunSelect} onDemo={handleDemo} usingDemo={usingDemo} watching={sourceSnapshot.watching} errors={sourceSnapshot.errors} loadingRunId={loadingRunId} />}
+      {!expandedAgent && <Sidebar runs={runs} runNames={shownNames} onRename={renameRun} agents={agents} selectedRunId={selectedRun?.id} loadedRunId={loadedRunId} runTokenSummaries={runTokenSummaries} onSelectRun={handleRunSelect} onDemo={handleDemo} usingDemo={usingDemo} watching={sourceSnapshot.watching} errors={sourceSnapshot.errors} loadingRunId={loadingRunId} />}
       <main className="workspace">
         <header className="topbar"><div className="topbar__context"><span className="topbar__section-label">Workspace</span><span className="topbar__slash">/</span><span className="topbar__current">{selectedRun?.cwd?.split('/').filter(Boolean).pop() || 'Agent activity'}</span></div><div className="topbar__controls"><ThemeSelector /><Dropdown label="Provider" value={providerFilter} options={PROVIDERS.map(provider => ({ value: provider.value, label: provider.label }))} onChange={value => setProviderFilter(value as ProviderFilter)} /><Dropdown label="Run" value={selectedRun?.id ?? ''} placeholder="Select a run" wide options={runs.map(run => ({ value: run.id, label: run.title || run.cwd?.split('/').filter(Boolean).pop() || 'workspace', description: `${providerLabel(run.harness)} · ${runAgentCount(run, agents)} agents · ${formatRelative(run.lastActivityAt ?? run.startedAt)}` }))} onChange={handleRunSelect} /><span className={`live-badge live-badge--${mode} ${monitorHasErrors ? 'live-badge--warning' : ''}`}>{isWatching ? <Radio size={13} className="live-badge__radio" /> : monitorHasErrors ? <TriangleAlert size={13} /> : <CircleDot size={13} />}{statusLabel}</span>{usingDemo && <button type="button" className="button button--tiny" onClick={handleReturnLive} disabled={!window.agentMonitor}>Return to live</button>}</div></header>
         {traceTabs.length > 0 && <div className="workspace-tabs" role="tablist" aria-label="Workspace views" onKeyDown={event => {

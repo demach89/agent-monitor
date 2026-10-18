@@ -10,6 +10,8 @@ export interface MonitorSource extends EventEmitter {
   getTrace(agentId: string): Promise<TraceEntry[]>;
   /** The title the agent gave a discovered run, if the source knows one. */
   getRunTitle?(runId: string): Promise<string | undefined>;
+  /** Names the agent keeps for discovered runs (run id → name). */
+  getAgentNames?(): Promise<Record<string, string>>;
 }
 
 /** Keeps selection exclusive across file and database sources. */
@@ -68,6 +70,12 @@ export class MultiSourceMonitor extends EventEmitter {
     this.selectedRunId = undefined;
     this.selectedSource = undefined;
     for (const source of this.sources) source.unloadRun();
+  }
+
+  async getAgentNames(): Promise<Record<string, string>> {
+    const names: Record<string, string> = {};
+    for (const source of this.sources) Object.assign(names, await source.getAgentNames?.());
+    return names;
   }
 
   /** Asks every source, since titles are shown for runs that are not loaded. */
