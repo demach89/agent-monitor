@@ -2,7 +2,7 @@ import type { AgentRun } from '../shared/types';
 
 /** Which part of a run matched a search, and the text to show with the match highlighted. */
 export interface RunMatch {
-  field: 'id' | 'name' | 'path' | 'all';
+  field: 'id' | 'custom' | 'name' | 'path' | 'all';
   text: string;
 }
 
@@ -16,8 +16,8 @@ export function runName(run: AgentRun) {
   return run.title || run.cwd?.split('/').filter(Boolean).pop() || 'Current workspace';
 }
 
-/** How a run matches a search by session id, shown name or working directory; undefined when it does not. */
-export function runMatch(run: AgentRun, query: string): RunMatch | undefined {
+/** How a run matches a search by session id, the reader's name for it, shown name or working directory; undefined when it does not. */
+export function runMatch(run: AgentRun, query: string, customName?: string): RunMatch | undefined {
   const needle = normalize(query);
   if (!needle) return { field: 'all', text: '' };
   // Provider sessions are namespaced (`claude:<session id>`); the bare id is what users copy.
@@ -25,14 +25,15 @@ export function runMatch(run: AgentRun, query: string): RunMatch | undefined {
   const bareId = run.id.startsWith(prefix) ? run.id.slice(prefix.length) : run.id;
   if (bareId.toLocaleLowerCase().includes(needle)) return { field: 'id', text: bareId };
   if (run.id.toLocaleLowerCase().includes(needle)) return { field: 'id', text: run.id };
+  if (customName?.toLocaleLowerCase().includes(needle)) return { field: 'custom', text: customName };
   const name = runName(run);
   if (name.toLocaleLowerCase().includes(needle)) return { field: 'name', text: name };
   if (run.cwd?.toLocaleLowerCase().includes(needle)) return { field: 'path', text: run.cwd };
   return undefined;
 }
 
-export function filterRuns(runs: readonly AgentRun[], query: string): AgentRun[] {
-  return runs.filter((run) => runMatch(run, query));
+export function filterRuns(runs: readonly AgentRun[], query: string, customNames: Record<string, string> = {}): AgentRun[] {
+  return runs.filter((run) => runMatch(run, query, customNames[run.id]));
 }
 
 /** Splits text into matching and non-matching parts for highlighting. */

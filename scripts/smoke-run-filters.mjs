@@ -81,10 +81,10 @@ async function main() {
       && await page.getByRole('button', { name: 'Period: All' }).count() === 1);
 
     // The open run stays in the list when it stops matching the filters.
-    await page.locator('button.run-item', { has: page.locator(`[title="${runs[2].cwd}"]`) }).click();
+    await page.locator('button.run-item', { has: page.locator(`[data-cwd="${runs[2].cwd}"]`) }).click();
     await choose('Period', 'Last week');
     await waitFor('the selected run kept', async () => await rows().count() === 2
-      && await page.locator(`button.run-item [title="${runs[2].cwd}"]`).count() === 1);
+      && await page.locator(`button.run-item [data-cwd="${runs[2].cwd}"]`).count() === 1);
 
     // A narrow window shows the period and project behind a Filters button.
     await electronApp.evaluate(({ BrowserWindow }) => {
@@ -105,7 +105,7 @@ async function main() {
     await waitFor('the outside-the-filters hint', () => page.getByText('1 more outside the filters').isVisible());
     await page.getByRole('button', { name: 'Show all' }).click();
     await waitFor('the run found after Show all', async () => await rows().count() === 1
-      && await page.locator(`button.run-item [title="${runs[1].cwd}"]`).count() === 1);
+      && await page.locator(`button.run-item [data-cwd="${runs[1].cwd}"]`).count() === 1);
 
     if (pageErrors.length) throw new Error(`renderer errors: ${pageErrors.map(String).join('; ')}`);
     console.log('PASS: run filters default to the last month, narrow to a project, persist, and keep the open run');

@@ -74,6 +74,13 @@ async function main() {
     await input.press('Enter');
     await waitFor('the saved name', async () => (await label(codexCwd).innerText()).replace(/\s+/g, ' ').trim() === 'VPS review · artem');
 
+    // The run search finds a run by its name.
+    const search = page.getByRole('searchbox', { name: 'Search runs' });
+    await search.fill('vps');
+    await waitFor('the run found by name', async () => await page.locator('button.run-item').count() === 1
+      && (await page.locator('button.run-item mark').innerText()) === 'VPS');
+    await search.fill('');
+
     // Escape cancels an edit.
     await label(codexCwd).dblclick();
     if (await input.inputValue() !== 'VPS review') throw new Error('the editor does not start from the current name');

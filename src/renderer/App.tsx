@@ -948,10 +948,10 @@ const TITLE_POPUP_DELAY_MS = 350;
 
 function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, agents, selectedRunId, loadedRunId, runTokenSummaries, onSelectRun, onDemo, usingDemo, watching, errors, loadingRunId, hidden }: { runs: AgentRun[]; runNames: Record<string, string>; onRename: (runId: string, name: string) => void; allRuns: AgentRun[]; filters: RunFilters; onFiltersChange: (filters: RunFilters) => void; agents: Agent[]; selectedRunId?: string; loadedRunId?: string; runTokenSummaries: Record<string, RunTokenSummary>; onSelectRun: (id: string) => void; onDemo: () => void; usingDemo: boolean; watching: boolean; errors: string[]; loadingRunId?: string; hidden?: boolean }) {
   const [query, setQuery] = useState('');
-  const visibleRuns = useMemo(() => filterRuns(runs, query), [runs, query]);
+  const visibleRuns = useMemo(() => filterRuns(runs, query, runNames), [runs, query, runNames]);
   const searching = Boolean(query.trim());
   // Matches the filters hide, so a search by ID does not lose older runs or other projects.
-  const outsideMatches = searching ? filterRuns(allRuns, query).length - visibleRuns.length : 0;
+  const outsideMatches = searching ? filterRuns(allRuns, query, runNames).length - visibleRuns.length : 0;
   const [editingRunId, setEditingRunId] = useState<string>();
   // Agent titles by run id: a string, '' when the agent gave none.
   const [agentTitles, setAgentTitles] = useState<Record<string, string>>({});
@@ -994,7 +994,7 @@ function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, 
       <div className="sidebar__section">
         <div className="run-list">
           {visibleRuns.map((run) => {
-            const match = runMatch(run, query);
+            const match = runMatch(run, query, runNames[run.id]);
             const selected = run.id === selectedRunId;
             const loading = run.id === loadingRunId;
             const summary = runTokenSummaries[run.id];
@@ -1034,7 +1034,7 @@ function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, 
                         hideTitle();
                         setEditingRunId(run.id);
                       }}>
-                      {runNames[run.id] && <><span className="run-item__name">{runNames[run.id]}</span><span className="run-item__folder"> · </span></>}
+                      {runNames[run.id] && <><span className="run-item__name">{match?.field === 'custom' ? <Highlighted text={match.text} query={query} /> : runNames[run.id]}</span><span className="run-item__folder"> · </span></>}
                       <span className={runNames[run.id] ? 'run-item__folder' : undefined}>{match?.field === 'name' ? <Highlighted text={match.text} query={query} /> : runName(run)}</span>
                     </span>}
                 {!editing && (match?.field === 'id' || match?.field === 'path') && <span className="run-item__match" title={match.text}><Highlighted text={match.text} query={query} /></span>}

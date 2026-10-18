@@ -35,3 +35,11 @@ test('highlight parts split text around every case-insensitive match', () => {
   ]);
   assert.deepEqual(highlightParts('plain', ''), [{ text: 'plain', match: false }]);
 });
+
+test('a run matches by the name the reader gave it', () => {
+  const names = { [codex.id]: 'VPS review' };
+  assert.deepEqual(runMatch(codex, 'vps', names[codex.id]), { field: 'custom', text: 'VPS review' });
+  assert.deepEqual(filterRuns([codex, claude], 'review', names).map((run) => run.id), [codex.id]);
+  // The session id still wins over a name that also matches.
+  assert.equal(runMatch(codex, '01a1', 'Run 01a1')?.field, 'id');
+});
