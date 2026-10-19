@@ -51,7 +51,8 @@ function priceUsage(usage:ModelTokenUsage): {usd:number|null;note?:string} {
   if(usage.provider && ![rate.vendor,`${rate.vendor}-codex`,`${rate.vendor}-responses`,`${rate.vendor}-completions`, ...(rate.vendor==='xai'?['xai-oauth']:[])].includes(usage.provider.toLowerCase())) return {usd:null,note:`Unverified billing route: ${usage.provider}.`};
   const values=[usage.inputTokens,usage.outputTokens,usage.cacheReadTokens,usage.cacheWriteTokens,usage.cacheWrite5mTokens,usage.cacheWrite1hTokens].filter(v=>v!==undefined);
   if(values.some(v=>!Number.isFinite(v)||(v ?? 0)<0)) return {usd:null,note:'Invalid token counters.'};
-  if(usage.inputTokens && (usage.cacheReadTokens===undefined || usage.cacheWriteTokens===undefined)) return {usd:null,note:`Cache accounting is unavailable for ${usage.model}.`};
+  // Older Codex logs omit cache writes; that only matters for models that charge for them.
+  if(usage.inputTokens && (usage.cacheReadTokens===undefined || (usage.cacheWriteTokens===undefined && rate.write!==undefined))) return {usd:null,note:`Cache accounting is unavailable for ${usage.model}.`};
   let selected:Rate=rate;
   if(rate.threshold && usage.requestInputTokens===undefined && usage.inputTokens>=rate.threshold) return {usd:null,note:`Per-request context size is unavailable for ${usage.model}.`};
   if(rate.threshold && ((usage.requestInputTokens??usage.inputTokens)>rate.threshold || (rate.thresholdInclusive && (usage.requestInputTokens??usage.inputTokens)===rate.threshold)) && rate.long) selected={...rate,...rate.long};
