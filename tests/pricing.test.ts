@@ -27,3 +27,11 @@ test('per-model rows aggregate across agents and sum to the agent estimates',asy
   const expected=estimateAgentCost(first).knownUsd+estimateAgentCost(second).knownUsd;
   assert.ok(Math.abs(known-expected)<1e-12);
 });
+const near=(actual:number|null,expected:number)=>assert.ok(actual!==null&&Math.abs(actual-expected)<1e-12,`${actual} != ${expected}`);
+const usd=(usage:ModelTokenUsage,model:string)=>estimateAgentCost(agent([{...usage,model}])).usd;
+const claude={...sample,cacheReadTokens:50000,cacheWriteTokens:20000,cacheWrite5mTokens:10000,cacheWrite1hTokens:10000};
+test('newer Claude models use their own cache-read rates',()=>{near(usd(claude,'claude-opus-5-5'),.46);near(usd(claude,'claude-fable-5-1'),1.1375);near(usd(claude,'claude-sonnet-5-5'),.23);});
+test('Haiku 5.5 bills prompts over 100k at the higher rates',()=>{near(usd(claude,'claude-haiku-5-5'),.01175);near(usd({...claude,inputTokens:100001,requestInputTokens:100001},'claude-haiku-5-5'),.0587505);});
+test('Haiku 5.5 long prompts without request size are unknown',()=>{const result=estimateAgentCost(agent([{...claude,model:'claude-haiku-5-5',inputTokens:100001,requestInputTokens:undefined}]));assert.equal(result.usd,null);assert.deepEqual(result.notes,['Per-request context size is unavailable for claude-haiku-5-5.']);});
+test('unlisted Claude IDs are not matched by prefix',()=>{const result=estimateAgentCost(agent([{...claude,model:'claude-opus-5-5-20260922'}]));assert.equal(result.usd,null);assert.deepEqual(result.notes,['No verified price for claude-opus-5-5-20260922.']);});
+test('existing Claude rates are unchanged',()=>{near(usd(sample,'claude-opus-5'),.39);});

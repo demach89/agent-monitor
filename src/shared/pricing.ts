@@ -2,7 +2,7 @@ import type { Agent, ModelTokenUsage } from './types';
 
 export const PRICING_VERIFIED_AT = '2026-09-16';
 export const PRICING_SOURCES = ['https://developers.openai.com/api/docs/pricing','https://platform.claude.com/docs/en/about-claude/pricing','https://docs.x.ai/developers/pricing'];
-type Rate = { vendor:string; input:number; read:number; write?:number; write1h?:number; output:number; threshold?:number; thresholdInclusive?:boolean; long?:{input:number;read:number;write:number;output:number} };
+type Rate = { vendor:string; input:number; read:number; write?:number; write1h?:number; output:number; threshold?:number; thresholdInclusive?:boolean; long?:{input:number;read:number;write:number;write1h?:number;output:number} };
 const rates:Record<string,Rate> = {};
 function openai(model:string,input:number,output:number) {
   rates[model]={vendor:'openai',input,read:input/10,write:input*1.25,output,threshold:272000,long:{input:input*2,read:input/5,write:input*2.5,output:output*1.5}};
@@ -16,6 +16,11 @@ rates['gpt-5.5-2026-04-23']=rates['gpt-5.5'];
 for (const [model,input,output] of [
   ['claude-fable-5',10,50],['claude-opus-5',5,25],['claude-sonnet-5',2,10],['claude-haiku-4-5-20251001',1,5],
 ] as const) rates[model]={vendor:'anthropic',input,read:input*.1,write:input*1.25,write1h:input*2,output};
+// Newer Claude models read cache below the usual 0.1x of input.
+for (const [model,input,read,output] of [
+  ['claude-fable-5-1',10,.25,50],['claude-opus-5-5',4,.2,20],['claude-sonnet-5-5',2,.1,10],
+] as const) rates[model]={vendor:'anthropic',input,read,write:input*1.25,write1h:input*2,output};
+rates['claude-haiku-5-5']={vendor:'anthropic',input:.1,read:.01,write:.125,write1h:.2,output:.5,threshold:100000,long:{input:.5,read:.05,write:.625,write1h:1,output:2.5}};
 for (const [model,read] of [['grok-4.6',.5],['grok-4.5',.3]] as const) rates[model]={vendor:'xai',input:2,read,output:6,threshold:200000,thresholdInclusive:true,long:{input:4,read:read*2,write:0,output:12}};
 
 
