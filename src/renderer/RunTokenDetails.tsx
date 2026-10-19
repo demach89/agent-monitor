@@ -65,7 +65,7 @@ export function RunTokenDetails({ agents }: { agents: Agent[] }) {
     || a.id.localeCompare(b.id));
   const costs = agents.map((agent) => {
     const cost = estimateAgentCost(agent);
-    return { agent, cost, note: withUnpriced(costNote(cost), unpricedNote(estimateModelCosts([agent]), cost.knownUsd)) };
+    return { agent, cost, note: withUnpriced(costNote(cost), unpricedNote(estimateModelCosts([agent]))) };
   });
   const costByAgentId = new Map(costs.map((entry) => [entry.agent.id, entry]));
   const totalCost = costs.reduce((sum, { cost }) => ({
@@ -83,7 +83,7 @@ export function RunTokenDetails({ agents }: { agents: Agent[] }) {
     : totalCost.knownUsd > 0
       ? `Known subtotal from priced usage. ${totalCost.unpricedTokens.toLocaleString()} tokens have no verified rate or complete cache metadata.`
       : `No priced usage is available. ${totalCost.unpricedTokens.toLocaleString()} tokens have no verified rate or complete cache metadata.`,
-    unpricedNote(modelRows, totalCost.knownUsd));
+    unpricedNote(modelRows));
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {

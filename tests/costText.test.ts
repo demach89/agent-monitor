@@ -8,7 +8,7 @@ const agent=(usage:ModelTokenUsage[]):Agent=>({id:'a',runId:'a',parentId:null,ha
 const priced:ModelTokenUsage={model:'gpt-6-astra',inputTokens:100000,outputTokens:10000,cacheReadTokens:80000,cacheWriteTokens:0,requestInputTokens:100000};
 const unpriced=(model:string,inputTokens:number):ModelTokenUsage=>({model,inputTokens,outputTokens:0,cacheReadTokens:0,cacheWriteTokens:0,requestInputTokens:inputTokens});
 const format=(value:number)=>`$${value}`;
-const lines=(agents:Agent[])=>{const rows=estimateModelCosts(agents);return unpricedNote(rows,rows.reduce((sum,row)=>sum+row.knownUsd,0)).split('\n');};
+const lines=(agents:Agent[])=>unpricedNote(estimateModelCosts(agents)).split('\n');
 
 test('complete cost shows the amount',()=>{assert.equal(costLabel(.78,true,format),'$0.78');assert.equal(costLabel(0,true,format),'$0');});
 test('partial cost is marked',()=>{assert.equal(costLabel(.78,false,format),'$0.78+');});
@@ -16,18 +16,16 @@ test('nothing priced is Unknown',()=>{assert.equal(costLabel(0,false,format),'Un
 test('tiny partial cost keeps the mark',()=>{assert.equal(costLabel(.00001,false,()=>'<$0.0001'),'<$0.0001+');});
 test('note lists unpriced models by tokens',()=>{
   assert.deepEqual(lines([agent([priced,unpriced('mystery-model',10000),unpriced('codex-auto-review',55000)])]),[
-    'At least this much: priced usage only.',
     'Not priced:',
     `• codex-auto-review: ${(55000).toLocaleString()} tokens (No verified price for codex-auto-review.)`,
     `• mystery-model: ${(10000).toLocaleString()} tokens (No verified price for mystery-model.)`,
   ]);
 });
-test('note without priced usage',()=>{assert.equal(lines([agent([unpriced('codex-auto-review',55000)])])[0],'No priced usage.');});
 test('note covers unattributed tokens',()=>{
   const a=agent([priced]);a.stats.inputTokens+=500;
-  assert.deepEqual(lines([a]).slice(2),[`• Unattributed: ${(500).toLocaleString()} tokens (Some tokens have no model/cache attribution.)`]);
+  assert.deepEqual(lines([a]).slice(1),[`• Unattributed: ${(500).toLocaleString()} tokens (Some tokens have no model/cache attribution.)`]);
 });
 test('note keeps reasons for partly priced models',()=>{
-  assert.deepEqual(lines([agent([priced,{...priced,cacheReadTokens:undefined}])]).slice(2),[`• gpt-6-astra: ${(110000).toLocaleString()} tokens (Cache accounting is unavailable for gpt-6-astra.)`]);
+  assert.deepEqual(lines([agent([priced,{...priced,cacheReadTokens:undefined}])]).slice(1),[`• gpt-6-astra: ${(110000).toLocaleString()} tokens (Cache accounting is unavailable for gpt-6-astra.)`]);
 });
-test('complete usage has no note',()=>{const rows=estimateModelCosts([agent([priced])]);assert.equal(unpricedNote(rows,.78),'');});
+test('complete usage has no note',()=>{const rows=estimateModelCosts([agent([priced])]);assert.equal(unpricedNote(rows),'');});
