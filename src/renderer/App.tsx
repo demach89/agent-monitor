@@ -987,7 +987,7 @@ function Sidebar({ runs, runNames, onRename, allRuns, filters, onFiltersChange, 
   const watcherTitle = usingDemo ? 'Demo stream' : watching ? 'Trace watcher' : 'Watcher paused';
   const watcherSubtitle = usingDemo ? 'sample data loaded' : errors.length ? `${errors.length} monitor issue${errors.length === 1 ? '' : 's'}` : watching ? 'listening locally' : 'monitor connected';
   return (
-    <aside className="sidebar" style={hidden ? { display: 'none' } : undefined}>
+    <aside className={`sidebar${hidden ? ' sidebar--hidden' : ''}`}>
       <div className="brand"><div className="brand__name">Agent Monitor</div></div>
       <div className="sidebar__nav"><button type="button" className="sidebar-link sidebar-link--active">Overview<span className="sidebar-link__shortcut">⌘ 1</span></button><button type="button" className="sidebar-link">Agent topology<span className="sidebar-link__count">{agents.length}</span></button></div>
       <div className="sidebar__runs-head">

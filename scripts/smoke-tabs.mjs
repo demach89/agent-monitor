@@ -118,6 +118,11 @@ async function main() {
 
     await openTraceTab(rootId);
     await waitFor('the root trace to load', () => page.getByText('Root message 120').first().isVisible());
+    if (process.platform === 'darwin') {
+      // With the run list hidden, the header is the first column and must clear the window controls.
+      const padding = await page.locator('.workspace .topbar').evaluate(element => getComputedStyle(element).paddingLeft);
+      if (padding !== '92px') throw new Error(`header overlaps the macOS window controls (padding-left ${padding})`);
+    }
     // Search first: focusing the field scrolls it into view.
     await page.locator('.trace-workspace:visible input[type="search"]').fill('message');
     const rootTop = await setScrollTop(page, visibleTrace, 1500);
