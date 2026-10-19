@@ -1,6 +1,6 @@
 import type { Agent, ModelTokenUsage } from './types';
 
-export const PRICING_VERIFIED_AT = '2026-09-16';
+export const PRICING_VERIFIED_AT = '2026-10-18';
 export const PRICING_SOURCES = ['https://developers.openai.com/api/docs/pricing','https://platform.claude.com/docs/en/about-claude/pricing','https://docs.x.ai/developers/pricing'];
 type Rate = { vendor:string; input:number; read:number; write?:number; write1h?:number; output:number; threshold?:number; thresholdInclusive?:boolean; long?:{input:number;read:number;write:number;write1h?:number;output:number} };
 const rates:Record<string,Rate> = {};
@@ -8,9 +8,13 @@ function openai(model:string,input:number,output:number) {
   rates[model]={vendor:'openai',input,read:input/10,write:input*1.25,output,threshold:272000,long:{input:input*2,read:input/5,write:input*2.5,output:output*1.5}};
 }
 openai('gpt-6-astra',10,50);
+openai('gpt-6-sol',2,10);
+openai('gpt-6-luna',.1,.5);
 openai('gpt-5.6-sol',4,20);
 openai('gpt-5.6-terra',2,12);
 openai('gpt-5.6-luna',0.2,1.2);
+// GPT-6.1 Sol reads cache at 0.05x of input, below the helper's 0.1x.
+rates['gpt-6.1-sol']={vendor:'openai',input:2,read:.1,write:2.5,output:10,threshold:272000,long:{input:4,read:.2,write:5,output:15}};
 rates['gpt-5.5']={vendor:'openai',input:5,read:.5,output:30,threshold:272000,long:{input:10,read:1,write:0,output:45}};
 rates['gpt-5.5-2026-04-23']=rates['gpt-5.5'];
 for (const [model,input,output] of [
@@ -21,7 +25,7 @@ for (const [model,input,read,output] of [
   ['claude-fable-5-1',10,.25,50],['claude-opus-5-5',4,.2,20],['claude-sonnet-5-5',2,.1,10],
 ] as const) rates[model]={vendor:'anthropic',input,read,write:input*1.25,write1h:input*2,output};
 rates['claude-haiku-5-5']={vendor:'anthropic',input:.1,read:.01,write:.125,write1h:.2,output:.5,threshold:100000,long:{input:.5,read:.05,write:.625,write1h:1,output:2.5}};
-for (const [model,read] of [['grok-4.6',.5],['grok-4.5',.3]] as const) rates[model]={vendor:'xai',input:2,read,output:6,threshold:200000,thresholdInclusive:true,long:{input:4,read:read*2,write:0,output:12}};
+for (const [model,read] of [['grok-4.7',.5],['grok-4.6',.5],['grok-4.5',.3]] as const) rates[model]={vendor:'xai',input:2,read,output:6,threshold:200000,thresholdInclusive:true,long:{input:4,read:read*2,write:0,output:12}};
 
 
 export interface CostEstimate { usd:number|null; knownUsd:number; complete:boolean; unpricedTokens:number; notes:string[] }
