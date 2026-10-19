@@ -305,6 +305,8 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); ou
 .run-item__tokens { min-width: 0; overflow: hidden; color: var(--list-value); font-size: 12px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; white-space: nowrap; }
 .run-item__tokens--unknown { color: var(--dim); font-style: italic; }
 .run-item__tokens--stale { color: var(--warning-text); }
+.run-item__cost { flex: 0 0 auto; color: var(--list-value); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.run-item__cost::before { content: '· '; color: var(--dim); }
 .run-item__signal { position: absolute; top: 13px; right: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--run-signal); }
 .run-item__signal--active { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-wash), 0 0 12px var(--accent); }
 .sidebar__empty { padding: 12px 9px; color: var(--dim); font-size: 13px; line-height: 1.5; }

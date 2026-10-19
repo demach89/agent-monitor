@@ -61,6 +61,7 @@ import { Dropdown } from './Dropdown';
 import { TraceWorkspace } from './TraceWorkspace';
 import { RollingNumber } from './RollingNumber';
 import { RunTokenDetails } from './RunTokenDetails';
+import { costLabel, runCost, usdShort, type RunCost } from './costText';
 import './TraceTabs.css';
 
 type SourceMode = 'loading' | 'live' | 'offline' | 'demo';
@@ -72,6 +73,7 @@ type LazyMonitorBridge = MonitorBridge & { loadRun?: (runId: string) => Promise<
 type RunTokenSummary = {
   input: number;
   output: number;
+  cost: RunCost;
   lastLoadedAt: number;
   lastActivityAt?: number;
 };
@@ -911,6 +913,9 @@ function Sidebar({ runs, agents, selectedRunId, loadedRunId, runTokenSummaries, 
                   <span className={`run-item__tokens ${!summary && !loaded ? 'run-item__tokens--unknown' : ''} ${stale ? 'run-item__tokens--stale' : ''}`} title={tokenTitle}>
                     {loaded || summary ? <><RollingNumber value={tokenTotal} /> tokens{stale ? ' · last loaded' : ''}</> : 'Load to see tokens'}
                   </span>
+                  {summary && <span className={`run-item__cost ${stale ? 'run-item__tokens--stale' : ''}`} title={[stale ? 'API token estimate from the last loaded snapshot; the run has since updated.' : 'API token estimate (USD).', summary.cost.unpriced].filter(Boolean).join('\n')}>
+                    {costLabel(summary.cost.knownUsd, summary.cost.complete, usdShort)}
+                  </span>}
                 </span>
               </span>
               <span className={`run-item__signal ${selected ? 'run-item__signal--active' : ''}`} />
@@ -963,11 +968,14 @@ function App() {
       input: sum.input + agent.stats.inputTokens,
       output: sum.output + agent.stats.outputTokens,
     }), { input: 0, output: 0 });
+    const cost = runCost(loadedRunAgents);
     setRunTokenSummaries((previous) => {
       const existing = previous[loadedRunId];
       if (existing
         && existing.input === totals.input
         && existing.output === totals.output
+        && existing.cost.knownUsd === cost.knownUsd
+        && existing.cost.complete === cost.complete
         && existing.lastActivityAt === loadedRunMetadata.lastActivityAt) {
         return previous;
       }
@@ -975,6 +983,7 @@ function App() {
         ...previous,
         [loadedRunId]: {
           ...totals,
+          cost,
           lastLoadedAt: now(),
           lastActivityAt: loadedRunMetadata.lastActivityAt,
         },

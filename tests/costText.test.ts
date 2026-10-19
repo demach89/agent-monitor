@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { costLabel, unpricedNote } from '../src/renderer/costText';
+import { costLabel, runCost, unpricedNote } from '../src/renderer/costText';
 import { estimateModelCosts } from '../src/shared/pricing';
 import type { Agent, ModelTokenUsage } from '../src/shared/types';
 
@@ -29,3 +29,10 @@ test('note keeps reasons for partly priced models',()=>{
   assert.deepEqual(lines([agent([priced,{...priced,cacheReadTokens:undefined}])]).slice(1),[`• gpt-6-astra: ${(110000).toLocaleString()} tokens (Cache accounting is unavailable for gpt-6-astra.)`]);
 });
 test('complete usage has no note',()=>{const rows=estimateModelCosts([agent([priced])]);assert.equal(unpricedNote(rows),'');});
+test('run cost sums agents and lists what is unpriced',()=>{
+  const result=runCost([{...agent([priced]),id:'main'},{...agent([unpriced('codex-auto-review',55000)]),id:'review'}]);
+  assert.ok(Math.abs(result.knownUsd-.78)<1e-12);assert.equal(result.complete,false);
+  assert.equal(result.unpriced,`Not priced:\n• codex-auto-review: ${(55000).toLocaleString()} tokens (No verified price for codex-auto-review.)`);
+});
+test('fully priced run cost is complete',()=>{const result=runCost([agent([priced])]);assert.equal(result.complete,true);assert.equal(result.unpriced,'');});
+test('a run without agents has no known cost',()=>{const result=runCost([]);assert.equal(costLabel(result.knownUsd,result.complete,format),'Unknown');});

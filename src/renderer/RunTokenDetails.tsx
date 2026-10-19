@@ -4,15 +4,9 @@ import type { Agent } from '../shared/types';
 import { estimateAgentCost, estimateModelCosts, PRICING_VERIFIED_AT, UNATTRIBUTED_MODEL, type ModelCostRow } from '../shared/pricing';
 import { RollingNumber, RollingText } from './RollingNumber';
 import { TokenUsageCharts } from './TokenUsageCharts';
-import { costLabel, unpricedNote } from './costText';
+import { costLabel, runCost, unpricedNote, usd, usdShort } from './costText';
 
 const exact = (value: number) => value.toLocaleString();
-
-function usd(value: number | null) {
-  if (value === null || !Number.isFinite(value)) return 'Unknown';
-  if (value !== 0 && Math.abs(value) < 0.0001) return '<$0.0001';
-  return `$${value.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
-}
 
 function share(part: number, whole: number) {
   if (!whole) return '0%';
@@ -21,12 +15,6 @@ function share(part: number, whole: number) {
 }
 
 const rate = (value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`;
-
-/** Cents are enough for the header; the breakdown keeps full precision. */
-function usdShort(value: number) {
-  if (Math.abs(value) < 1) return usd(value);
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function modelCostNote(row: ModelCostRow) {
   if (row.complete) return `Rates verified ${PRICING_VERIFIED_AT}.`;
@@ -68,11 +56,7 @@ export function RunTokenDetails({ agents }: { agents: Agent[] }) {
     return { agent, cost, note: withUnpriced(costNote(cost), unpricedNote(estimateModelCosts([agent]))) };
   });
   const costByAgentId = new Map(costs.map((entry) => [entry.agent.id, entry]));
-  const totalCost = costs.reduce((sum, { cost }) => ({
-    knownUsd: sum.knownUsd + cost.knownUsd,
-    unpricedTokens: sum.unpricedTokens + cost.unpricedTokens,
-    complete: sum.complete && cost.complete && cost.usd !== null,
-  }), { knownUsd: 0, unpricedTokens: 0, complete: costs.length > 0 });
+  const totalCost = runCost(agents);
   const totalTokens = totals.input + totals.output;
   const pricedTokens = totalTokens - totalCost.unpricedTokens;
   const perMillion = totalCost.knownUsd > 0 && pricedTokens > 0 ? totalCost.knownUsd / pricedTokens * 1_000_000 : undefined;
@@ -83,7 +67,7 @@ export function RunTokenDetails({ agents }: { agents: Agent[] }) {
     : totalCost.knownUsd > 0
       ? `Known subtotal from priced usage. ${totalCost.unpricedTokens.toLocaleString()} tokens have no verified rate or complete cache metadata.`
       : `No priced usage is available. ${totalCost.unpricedTokens.toLocaleString()} tokens have no verified rate or complete cache metadata.`,
-    unpricedNote(modelRows));
+    totalCost.unpriced);
 
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
