@@ -1,11 +1,11 @@
 import type { Agent } from '../shared/types';
 import { estimateAgentCost, estimateModelCosts, type ModelCostRow } from '../shared/pricing';
 
-/** Cents from a dollar up; smaller amounts keep four places, since there the fractions are the cost. */
+/** Cents from a cent up; smaller amounts keep four places, since there the fractions are the cost. */
 export function usd(value: number | null) {
   if (value === null || !Number.isFinite(value)) return 'Unknown';
   if (value !== 0 && Math.abs(value) < 0.0001) return '<$0.0001';
-  if (Math.abs(value) >= 1) return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (Math.abs(value) >= 0.01) return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
 }
 

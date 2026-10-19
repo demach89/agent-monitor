@@ -36,8 +36,9 @@ test('run cost sums agents and lists what is unpriced',()=>{
 });
 test('fully priced run cost is complete',()=>{const result=runCost([agent([priced])]);assert.equal(result.complete,true);assert.equal(result.unpriced,'');});
 test('a run without agents has no known cost',()=>{const result=runCost([]);assert.equal(costLabel(result.knownUsd,result.complete,format),'Unknown');});
-test('amounts from a dollar up keep cents, smaller ones keep four places',()=>{
+test('amounts from a cent up keep cents, smaller ones keep four places',()=>{
   const cents=(value:number)=>`$${value.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   assert.equal(usd(1.2345),cents(1.23));assert.equal(usd(4.6174),cents(4.62));assert.equal(usd(5),cents(5));
-  assert.equal(usd(.12345),`$${(.1235).toLocaleString(undefined,{maximumFractionDigits:4})}`);assert.equal(usd(.00005),'<$0.0001');assert.equal(usd(null),'Unknown');
+  assert.equal(usd(.3219),cents(.32));assert.equal(usd(.01),cents(.01));
+  assert.equal(usd(.0099),`$${(.0099).toLocaleString(undefined,{maximumFractionDigits:4})}`);assert.equal(usd(.00123),`$${(.0012).toLocaleString(undefined,{maximumFractionDigits:4})}`);assert.equal(usd(.00005),'<$0.0001');assert.equal(usd(null),'Unknown');
 });
