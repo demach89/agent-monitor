@@ -4,7 +4,7 @@ import type { Agent } from '../shared/types';
 import { estimateAgentCost, estimateModelCosts, PRICING_VERIFIED_AT, UNATTRIBUTED_MODEL, type ModelCostRow } from '../shared/pricing';
 import { RollingNumber, RollingText } from './RollingNumber';
 import { TokenUsageCharts } from './TokenUsageCharts';
-import { costLabel, runCost, unpricedNote, usd, usdShort } from './costText';
+import { costLabel, runCost, unpricedNote, usd } from './costText';
 
 const exact = (value: number) => value.toLocaleString();
 
@@ -61,7 +61,7 @@ export function RunTokenDetails({ agents }: { agents: Agent[] }) {
   const pricedTokens = totalTokens - totalCost.unpricedTokens;
   const perMillion = totalCost.knownUsd > 0 && pricedTokens > 0 ? totalCost.knownUsd / pricedTokens * 1_000_000 : undefined;
   const totalCostLabel = costLabel(totalCost.knownUsd, totalCost.complete, usd);
-  const totalCostShort = costLabel(totalCost.knownUsd, totalCost.complete, usdShort);
+  const totalCostShort = costLabel(totalCost.knownUsd, totalCost.complete, usd);
   const totalCostNote = withUnpriced(totalCost.complete
     ? `Rates verified ${PRICING_VERIFIED_AT}.`
     : totalCost.knownUsd > 0

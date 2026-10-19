@@ -1,16 +1,12 @@
 import type { Agent } from '../shared/types';
 import { estimateAgentCost, estimateModelCosts, type ModelCostRow } from '../shared/pricing';
 
+/** Cents from a dollar up; smaller amounts keep four places, since there the fractions are the cost. */
 export function usd(value: number | null) {
   if (value === null || !Number.isFinite(value)) return 'Unknown';
   if (value !== 0 && Math.abs(value) < 0.0001) return '<$0.0001';
+  if (Math.abs(value) >= 1) return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return `$${value.toLocaleString(undefined, { maximumFractionDigits: 4 })}`;
-}
-
-/** Cents are enough for headers and lists; the breakdown keeps full precision. */
-export function usdShort(value: number) {
-  if (Math.abs(value) < 1) return usd(value);
-  return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 /** A partial estimate keeps its known subtotal, marked with `+`: the full cost is at least that much. */

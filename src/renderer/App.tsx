@@ -61,7 +61,7 @@ import { Dropdown } from './Dropdown';
 import { TraceWorkspace } from './TraceWorkspace';
 import { RollingNumber } from './RollingNumber';
 import { RunTokenDetails } from './RunTokenDetails';
-import { costLabel, runCost, usdShort, type RunCost } from './costText';
+import { costLabel, runCost, usd, type RunCost } from './costText';
 import './TraceTabs.css';
 
 type SourceMode = 'loading' | 'live' | 'offline' | 'demo';
@@ -914,7 +914,7 @@ function Sidebar({ runs, agents, selectedRunId, loadedRunId, runTokenSummaries, 
                     {loaded || summary ? <><RollingNumber value={tokenTotal} /> tokens{stale ? ' · last loaded' : ''}</> : 'Load to see tokens'}
                   </span>
                   {summary && <span className={`run-item__cost ${stale ? 'run-item__tokens--stale' : ''}`} title={[stale ? 'API token estimate from the last loaded snapshot; the run has since updated.' : 'API token estimate (USD).', summary.cost.unpriced].filter(Boolean).join('\n')}>
-                    {costLabel(summary.cost.knownUsd, summary.cost.complete, usdShort)}
+                    {costLabel(summary.cost.knownUsd, summary.cost.complete, usd)}
                   </span>}
                 </span>
               </span>
