@@ -1,5 +1,5 @@
-// Checks that a run with priced and unpriced models shows its known cost
-// with a plus sign and names the unpriced model in the tooltip.
+// Checks that a run with priced and unpriced models shows its known cost with
+// a plus sign, in the breakdown and the run list, and names the unpriced model.
 import { _electron as electron, expect } from '@playwright/test';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -73,6 +73,11 @@ async function main() {
     for (const text of ['Not priced:', 'codex-auto-review:']) {
       if (!headerTitle?.includes(text)) throw new Error(`Header tooltip lacks "${text}": ${headerTitle}`);
     }
+
+    const listCost = page.locator('button.run-item').filter({ hasText: 'cost-project' }).locator('.run-item__cost');
+    await expect(listCost).toHaveText(partial, { timeout });
+    const listTitle = await listCost.getAttribute('title');
+    if (!listTitle?.includes('codex-auto-review:')) throw new Error(`Run list cost tooltip lacks the unpriced model: ${listTitle}`);
 
     await page.locator('summary.run-token-totals').click({ timeout });
     await expect(page.locator('.token-breakdown__tile--cost strong')).toHaveText(partial, { timeout });
