@@ -7,11 +7,10 @@ export function costLabel(knownUsd: number, complete: boolean, format: (value: n
 }
 
 /** Names the models whose tokens have no price, most unpriced tokens first; empty when everything is priced. */
-export function unpricedNote(rows: readonly ModelCostRow[], knownUsd: number): string {
+export function unpricedNote(rows: readonly ModelCostRow[]): string {
   const unpriced = rows.filter((row) => row.unpricedTokens > 0).sort((a, b) => b.unpricedTokens - a.unpricedTokens);
   if (!unpriced.length) return '';
   return [
-    knownUsd > 0 ? 'At least this much: priced usage only.' : 'No priced usage.',
     'Not priced:',
     ...unpriced.map((row) => `• ${row.model}: ${row.unpricedTokens.toLocaleString()} tokens${row.notes.length ? ` (${row.notes.join(' ')})` : ''}`),
   ].join('\n');
