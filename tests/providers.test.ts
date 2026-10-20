@@ -162,6 +162,15 @@ test('Claude subagent role and task come from the meta file next to its trace', 
   }
 });
 
+test('Codex subagents without a role take it from their source, as guardian reviews do', () => {
+  const meta = (payload: Record<string, unknown>) => [{ value: { type: 'session_meta', timestamp: '2026-10-20T00:00:00Z', payload: { id: 'child', parent_thread_id: 'root', thread_source: 'subagent', ...payload } }, index: 0 }];
+  const role = (payload: Record<string, unknown>) => new CodexAdapter().inspect(meta(payload), { tracePath: 'child.jsonl' })?.agent.role;
+  assert.equal(role({ source: { subagent: { other: 'guardian' } } }), 'guardian');
+  assert.equal(role({ agent_role: 'explorer', source: { subagent: { thread_spawn: { agent_role: 'explorer' } } } }), 'explorer');
+  assert.equal(role({ source: { subagent: { thread_spawn: { agent_nickname: 'Boole', agent_role: null } } } }), undefined);
+  assert.equal(role({ source: 'cli' }), undefined);
+});
+
 test('Hermes Claude exports require the Hermes marker and reuse the Claude envelope', () => {
   const value = {
     version: 'hermes-agent',
