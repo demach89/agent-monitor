@@ -63,14 +63,14 @@ async function main() {
     await page.locator('button.run-item').first().click({ timeout });
 
     const node = id => page.locator(`.react-flow__node[data-id="claude:${session}:${id}"]`);
-    await expect(node('a1')).toContainText('reviewer #1', { timeout });
-    await expect(node('a2')).toContainText('reviewer #2', { timeout });
-    await expect(node('a3')).toContainText('Explore', { timeout });
+    await expect(node('a1')).toContainText('Subagent · reviewer #1', { timeout });
+    await expect(node('a2')).toContainText('Subagent · reviewer #2', { timeout });
+    await expect(node('a3')).toContainText('Subagent · Explore', { timeout });
     await expect(node('a3')).not.toContainText('#', { timeout });
 
     await node('a2').click({ timeout });
     const details = page.locator('.details-pane');
-    await expect(details.locator('h2')).toHaveText('reviewer #2', { timeout });
+    await expect(details.locator('h2')).toHaveText('Subagent · reviewer #2', { timeout });
     await expect(details.locator('dt', { hasText: 'Task' }).locator('xpath=following-sibling::dd')).toHaveText('Review PR 1571 diff', { timeout });
 
     console.log('PASS: Claude subagents are named by role, numbered within a role, and show their task');
