@@ -142,7 +142,7 @@ async function main() {
     const search = await page.locator('.trace-workspace:visible input[type="search"]').inputValue();
     if (search !== 'message') throw new Error(`root trace search was reset to "${search}"`);
 
-    await traceTab('Child').click();
+    await traceTab('Subagent · Child').click();
     await waitFor('the child tab to show', () => page.getByText('Child message 80').first().isVisible());
     expectNear(await scrollTop(page, visibleTrace), childTop, 'child trace after switching tabs');
 
