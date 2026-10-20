@@ -590,6 +590,7 @@ export class CodexAdapter {
       ...(effort ? { reasoningEffort: effort } : {}),
       ...(firstString(meta, ['agent_role', 'agentRole']) ? { role: firstString(meta, ['agent_role', 'agentRole']) } : {}),
       ...(firstString(meta, ['agent_nickname', 'agentNickname']) ? { nickname: firstString(meta, ['agent_nickname', 'agentNickname']) } : {}),
+      ...(firstString(meta, ['agent_description', 'agentDescription']) ? { description: firstString(meta, ['agent_description', 'agentDescription']) } : {}),
       ...(firstString(meta, ['agent_path', 'agentPath']) ? { agentPath: firstString(meta, ['agent_path', 'agentPath']) } : {}),
       ...(cwd ? { cwd } : {}),
       ...(tracePath ? { tracePath } : {}),

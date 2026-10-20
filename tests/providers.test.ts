@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { CodexAdapter } from '../src/traces/codex';
 import { createClaudeSession } from '../src/traces/claude';
@@ -135,6 +138,28 @@ test('Claude nested subagent identity comes from its path and ignores message pa
   assert.equal(observation.agent.threadId, 'claude:root-session:explore');
   assert.equal(observation.agent.parentThreadId, 'claude:root-session');
   assert.equal(observation.agent.type, 'subagent');
+});
+
+test('Claude subagent role and task come from the meta file next to its trace', () => {
+  const dir = path.join(mkdtempSync(path.join(os.tmpdir(), 'claude-meta-')), 'root-session', 'subagents');
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, 'agent-explore.meta.json'), JSON.stringify({ agentType: 'Explore', description: 'Find config files', toolUseId: 'toolu_1' }));
+  writeFileSync(path.join(dir, 'agent-broken.meta.json'), '{not json');
+  const child = { type: 'assistant', sessionId: 'child-session', uuid: 'c-1', message: { id: 'm-1', role: 'assistant', model: 'claude-haiku-4-5', content: [{ type: 'text', text: 'Found them' }] } };
+
+  const session = createClaudeSession(child, path.join(dir, 'agent-explore.jsonl'));
+  assert(session);
+  const agent = new CodexAdapter().inspect(canonical(session, [child]), { tracePath: 'child.jsonl' })?.agent;
+  assert.equal(agent?.role, 'Explore');
+  assert.equal(agent?.description, 'Find config files');
+
+  for (const name of ['agent-broken.jsonl', 'agent-missing.jsonl']) {
+    const other = createClaudeSession(child, path.join(dir, name));
+    assert(other);
+    const otherAgent = new CodexAdapter().inspect(canonical(other, [child]), { tracePath: name })?.agent;
+    assert.equal(otherAgent?.role, undefined);
+    assert.equal(otherAgent?.description, undefined);
+  }
 });
 
 test('Hermes Claude exports require the Hermes marker and reuse the Claude envelope', () => {
