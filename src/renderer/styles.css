@@ -543,7 +543,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); ou
 .token-breakdown header p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .token-breakdown .token-breakdown__close { display: inline-flex; align-items: center; gap: 6px; }
 .token-breakdown .token-breakdown__close:hover { border-color: var(--accent-border); color: var(--accent); }
-.token-breakdown__totals { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; padding: 0 22px; }
+.token-breakdown__totals { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; padding: 0 22px; }
 .token-breakdown__tile { display: grid; gap: 6px; min-width: 0; padding: 14px 16px; border: 1px solid var(--border-subtle); border-radius: 10px; background: var(--surface-2); }
 .token-breakdown__tile > span { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .token-breakdown__tile--input > span::before, .token-breakdown__tile--output > span::before { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); content: ''; }
@@ -598,4 +598,4 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); ou
 }
 @media(max-width:650px) { .token-breakdown__charts .token-charts__grid { grid-template-columns: 1fr; } }
 
-@media(max-width:750px) { .token-breakdown__totals { grid-template-columns:repeat(2,minmax(0,1fr)); } .token-breakdown__tile strong { font-size: 22px; } }
+@media(max-width:750px) { .token-breakdown__totals { grid-template-columns:repeat(3,minmax(0,1fr)); } .token-breakdown__tile strong { font-size: 22px; } }
