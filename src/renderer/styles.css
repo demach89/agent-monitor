@@ -596,7 +596,7 @@ button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); ou
 .token-breakdown__notes { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 18px; padding: 12px 22px 14px; color: var(--dim); font-size: 12px; }
 .token-breakdown__notes > span { display: inline-flex; align-items: center; gap: 6px; }
 .token-breakdown__warning { padding: 3px 9px; border: 1px solid color-mix(in srgb, var(--warning) 35%, transparent); border-radius: 999px; color: var(--warning-text); background: color-mix(in srgb, var(--warning) 9%, transparent); }
-.token-breakdown__body { display: grid; grid-template-columns: minmax(540px, 1.15fr) minmax(360px, 1fr); height: min(760px, calc(100vh - 250px)); min-height: 260px; }
+.token-breakdown__body { display: grid; grid-template-columns: minmax(540px, 2fr) minmax(360px, 1fr); height: min(760px, calc(100vh - 250px)); min-height: 260px; }
 .token-breakdown__scroll { min-height: 0; overflow: auto; }
 .token-breakdown__pane { display: flex; min-height: 0; flex-direction: column; }
 .token-breakdown__pane .token-breakdown__scroll { flex: 1; }
